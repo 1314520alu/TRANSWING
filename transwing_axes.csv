@@ -1,0 +1,3 @@
+name,hx_m,hy_m,hz_m,ax,ay,az,radius_m,source
+left_wing_hinge_axis,0.000000,-0.126000,0.416000,-0.457000,0.771000,0.486000,,user_recomputed_cg_body_axis_from_A_B
+right_wing_hinge_axis,0.000000,0.126000,0.416000,-0.457000,-0.771000,0.486000,,user_recomputed_cg_body_axis_from_C_D

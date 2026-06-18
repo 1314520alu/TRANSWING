@@ -1,0 +1,5 @@
+motor,test_letter,physical_position,spin,x0_m,y0_m,z0_m,x90_m,y90_m,z90_m
+M1,A,right_front,CCW,0.525,0.320,-0.045,0.155,0.490,-0.460
+M2,C,left_rear,CCW,0.520,-0.980,-0.060,-0.480,-0.460,-0.355
+M3,D,left_front,CW,0.525,-0.320,-0.045,0.155,-0.490,-0.460
+M4,B,right_rear,CW,0.520,0.980,-0.060,-0.480,0.460,-0.355

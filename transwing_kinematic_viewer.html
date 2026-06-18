@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Transwing 3D Body-Frame Viewer</title>
+  <style>
+    :root {
+      --bg: #eef2f5;
+      --ink: #172126;
+      --muted: #5c6970;
+      --panel: #ffffff;
+      --line: #cfd8de;
+      --left: #d14b3f;
+      --right: #1d7f96;
+      --axis-x: #c6463f;
+      --axis-y: #1f7f8e;
+      --axis-z: #577b42;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      height: 100vh;
+    }
+
+    #scene-wrap {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      background: #e8edf1;
+    }
+
+    #scene {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .label {
+      position: absolute;
+      padding: 3px 6px;
+      border: 1px solid rgba(23, 33, 38, 0.18);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.86);
+      color: var(--ink);
+      font-size: 12px;
+      line-height: 1.2;
+      pointer-events: none;
+      white-space: nowrap;
+      transform: translate(-50%, -50%);
+    }
+
+    aside {
+      border-left: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.94);
+      padding: 20px;
+      overflow: auto;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      letter-spacing: 0;
+    }
+
+    .sub {
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .control {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    output {
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--right);
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    button {
+      border: 1px solid #aebac1;
+      border-radius: 6px;
+      background: #22313a;
+      color: white;
+      min-height: 38px;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #ffffff;
+      color: var(--ink);
+    }
+
+    .legend {
+      display: grid;
+      gap: 8px;
+      margin: 14px 0;
+      font-size: 13px;
+    }
+
+    .item {
+      display: grid;
+      grid-template-columns: 16px 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid rgba(0, 0, 0, 0.18);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 7px 4px;
+      text-align: right;
+    }
+
+    th:first-child, td:first-child,
+    th:nth-child(2), td:nth-child(2) {
+      text-align: left;
+    }
+
+    .mono {
+      margin-top: 12px;
+      color: var(--muted);
+      font-family: Consolas, "Microsoft YaHei Mono", monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+
+      aside {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+        max-height: 46vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section id="scene-wrap">
+      <canvas id="scene"></canvas>
+    </section>
+    <aside>
+      <h1>Transwing 3D 机体坐标系</h1>
+      <p class="sub">原点为 CG。X 向机头，Y 向右机翼，Z 向上。电机位置来自最新 CSV 的 0 deg 与 90 deg 数据。</p>
+
+      <section class="control">
+        <label for="theta">折叠角 <output id="thetaOut">0 deg</output></label>
+        <input id="theta" type="range" min="0" max="90" value="0" step="1" />
+      </section>
+
+      <div class="buttons">
+        <button id="play">播放</button>
+        <button class="secondary" id="resetView">重置视角</button>
+      </div>
+
+      <div class="legend">
+        <div class="item"><span class="swatch" style="background: var(--left)"></span><span>左侧电机 / 左翼轨迹</span></div>
+        <div class="item"><span class="swatch" style="background: var(--right)"></span><span>右侧电机 / 右翼轨迹</span></div>
+        <div class="item"><span class="swatch" style="background: #202a30"></span><span>折叠转轴</span></div>
+        <div class="item"><span class="swatch" style="background: #f0b44c"></span><span>电机运动轨迹</span></div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>电机</th>
+            <th>位置</th>
+            <th>X</th>
+            <th>Y</th>
+            <th>Z</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+
+      <div class="mono" id="readout"></div>
+    </aside>
+  </main>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js",
+        "three/addons/": "./vendor/three-addons/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { AXES, BODY_FRAME, MOTORS, interpolateMotorPosition } from "./transwing_scene_data.mjs";
+
+    const canvas = document.querySelector("#scene");
+    const wrap = document.querySelector("#scene-wrap");
+    const thetaInput = document.querySelector("#theta");
+    const thetaOut = document.querySelector("#thetaOut");
+    const playButton = document.querySelector("#play");
+    const resetViewButton = document.querySelector("#resetView");
+    const rows = document.querySelector("#rows");
+    const readout = document.querySelector("#readout");
+
+    const colors = {
+      left: 0xd14b3f,
+      right: 0x1d7f96,
+      fuselage: 0x8d9ba5,
+      wing: 0xd9e1e5,
+      axis: 0x202a30,
+      path: 0xf0b44c,
+      x: 0xc6463f,
+      y: 0x1f7f8e,
+      z: 0x577b42,
+    };
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xe8edf1);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true;
+
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 50);
+    camera.up.set(0, 0, 1);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0.08, 0, -0.08);
+
+    const labelLayer = document.createElement("div");
+    labelLayer.style.position = "absolute";
+    labelLayer.style.inset = "0";
+    labelLayer.style.pointerEvents = "none";
+    wrap.appendChild(labelLayer);
+
+    const labels = [];
+    const motorMeshes = new Map();
+    const wingConnectors = [];
+
+    setupCamera();
+    buildLights();
+    buildReferenceGrid();
+    buildAircraftShell();
+    buildBodyAxes();
+    buildHingeAxes();
+    buildMotorPaths();
+    buildMotors();
+    updateScene(0);
+    animate();
+
+    playButton.addEventListener("click", () => {
+      playButton.dataset.playing = playButton.dataset.playing === "true" ? "false" : "true";
+      playButton.textContent = playButton.dataset.playing === "true" ? "暂停" : "播放";
+    });
+
+    resetViewButton.addEventListener("click", setupCamera);
+    thetaInput.addEventListener("input", () => updateScene(Number(thetaInput.value)));
+
+    function setupCamera() {
+      camera.position.set(1.65, -2.45, 1.25);
+      controls.target.set(0.08, 0, -0.08);
+      controls.update();
+    }
+
+    function buildLights() {
+      scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa6ad, 2.5));
+      const key = new THREE.DirectionalLight(0xffffff, 2.2);
+      key.position.set(1.8, -2.2, 2.4);
+      key.castShadow = true;
+      scene.add(key);
+    }
+
+    function buildReferenceGrid() {
+      const grid = new THREE.GridHelper(2.8, 14, 0xb4c1c8, 0xd3dde2);
+      grid.rotation.x = Math.PI / 2;
+      grid.position.z = -0.52;
+      scene.add(grid);
+    }
+
+    function buildAircraftShell() {
+      const fuselage = box([0.08, 0, -0.06], [1.18, 0.22, 0.18], colors.fuselage, 0.5);
+      scene.add(fuselage);
+
+      const nose = cone([0.72, 0, -0.06], [0.24, 0.22, 0.18], colors.fuselage, 0.55);
+      scene.add(nose);
+
+      const tail = box([-0.55, 0, -0.03], [0.36, 0.12, 0.1], colors.fuselage, 0.42);
+      scene.add(tail);
+
+      const leftWing = wingPanel("left", -0.52, colors.left);
+      const rightWing = wingPanel("right", 0.52, colors.right);
+      scene.add(leftWing, rightWing);
+
+      const leftLink = lineObject([0.525, -0.32, -0.045], [0.52, -0.98, -0.06], colors.left, 3);
+      const rightLink = lineObject([0.525, 0.32, -0.045], [0.52, 0.98, -0.06], colors.right, 3);
+      wingConnectors.push(leftLink, rightLink);
+      scene.add(leftLink, rightLink);
+    }
+
+    function buildBodyAxes() {
+      addArrow([0, 0, 0], [0.68, 0, 0], colors.x, "X 前");
+      addArrow([0, 0, 0], [0, 0.72, 0], colors.y, "Y 右");
+      addArrow([0, 0, 0], [0, 0, 0.58], colors.z, "Z 上");
+      addSphere([0, 0, 0], 0.025, 0x172126, "CG");
+    }
+
+    function buildHingeAxes() {
+      for (const axis of AXES) {
+        const start = addScaled(axis.point, axis.direction, -0.5);
+        const end = addScaled(axis.point, axis.direction, 0.5);
+        scene.add(cylinderBetween(start, end, 0.012, colors.axis, 0.88));
+        addSphere(axis.point, 0.022, colors.axis, axis.label);
+      }
+    }
+
+    function buildMotorPaths() {
+      for (const motor of MOTORS) {
+        const points = [];
+        for (let theta = 0; theta <= 90; theta += 3) {
+          points.push(new THREE.Vector3(...interpolateMotorPosition(motor, theta)));
+        }
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const material = new THREE.LineDashedMaterial({
+          color: colors.path,
+          dashSize: 0.035,
+          gapSize: 0.025,
+          transparent: true,
+          opacity: 0.82,
+        });
+        const path = new THREE.Line(geometry, material);
+        path.computeLineDistances();
+        scene.add(path);
+      }
+    }
+
+    function buildMotors() {
+      for (const motor of MOTORS) {
+        const group = new THREE.Group();
+        const color = motor.side === "left" ? colors.left : colors.right;
+
+        const hub = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.055, 0.055, 0.034, 32),
+          new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.16 }),
+        );
+        hub.rotation.x = Math.PI / 2;
+        group.add(hub);
+
+        const bladeMaterial = new THREE.MeshStandardMaterial({
+          color: 0x26343b,
+          roughness: 0.36,
+          metalness: 0.18,
+        });
+        const bladeA = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.024, 0.008), bladeMaterial);
+        const bladeB = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.24, 0.008), bladeMaterial);
+        group.add(bladeA, bladeB);
+
+        scene.add(group);
+        motorMeshes.set(motor.id, group);
+        addLabelAnchor(motor.label, group);
+
+        addSphere(motor.unfolded, 0.018, 0x56636b, `${motor.id} 0 deg`);
+        addSphere(motor.folded, 0.018, 0x56636b, `${motor.id} 90 deg`);
+      }
+    }
+
+    function updateScene(theta) {
+      thetaOut.textContent = `${theta.toFixed(0)} deg`;
+      const current = new Map();
+      for (const motor of MOTORS) {
+        const position = interpolateMotorPosition(motor, theta);
+        current.set(motor.id, position);
+        const mesh = motorMeshes.get(motor.id);
+        mesh.position.set(...position);
+        mesh.rotation.z = theta * 0.08 + (motor.spin === "CW" ? Math.PI / 4 : 0);
+      }
+
+      updateConnector(wingConnectors[0], current.get("M3"), current.get("M2"));
+      updateConnector(wingConnectors[1], current.get("M1"), current.get("M4"));
+
+      rows.innerHTML = MOTORS.map((motor) => {
+        const p = current.get(motor.id);
+        return `<tr>
+          <td>${motor.id}/${motor.testLetter}</td>
+          <td>${motor.position}</td>
+          <td>${p[0].toFixed(3)}</td>
+          <td>${p[1].toFixed(3)}</td>
+          <td>${p[2].toFixed(3)}</td>
+        </tr>`;
+      }).join("");
+
+      readout.textContent = [
+        `坐标系: 原点 ${BODY_FRAME.origin}; X=${BODY_FRAME.axes.x}; Y=${BODY_FRAME.axes.y}; Z=${BODY_FRAME.axes.z}`,
+        `转轴: left H=${format(AXES[0].point)} dir=${format(AXES[0].direction)}`,
+        `转轴: right H=${format(AXES[1].point)} dir=${format(AXES[1].direction)}`,
+      ].join("\n");
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (playButton.dataset.playing === "true") {
+        const next = (Number(thetaInput.value) + 0.5) % 91;
+        thetaInput.value = String(next);
+        updateScene(Math.round(next));
+      }
+      resizeRenderer();
+      controls.update();
+      renderer.render(scene, camera);
+      updateLabels();
+    }
+
+    function resizeRenderer() {
+      const width = wrap.clientWidth;
+      const height = wrap.clientHeight;
+      const needsResize = canvas.width !== Math.floor(width * renderer.getPixelRatio())
+        || canvas.height !== Math.floor(height * renderer.getPixelRatio());
+      if (needsResize) {
+        renderer.setSize(width, height, false);
+        camera.aspect = width / Math.max(1, height);
+        camera.updateProjectionMatrix();
+      }
+    }
+
+    function addArrow(start, end, color, label) {
+      const from = new THREE.Vector3(...start);
+      const to = new THREE.Vector3(...end);
+      const dir = to.clone().sub(from).normalize();
+      const length = to.distanceTo(from);
+      const arrow = new THREE.ArrowHelper(dir, from, length, color, 0.09, 0.042);
+      scene.add(arrow);
+      addLabelAt(label, end);
+    }
+
+    function addSphere(position, radius, color, label) {
+      const sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(radius, 24, 16),
+        new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.1 }),
+      );
+      sphere.position.set(...position);
+      scene.add(sphere);
+      if (label) addLabelAnchor(label, sphere);
+      return sphere;
+    }
+
+    function addLabelAt(text, position) {
+      const anchor = new THREE.Object3D();
+      anchor.position.set(...position);
+      scene.add(anchor);
+      addLabelAnchor(text, anchor);
+    }
+
+    function addLabelAnchor(text, object) {
+      const el = document.createElement("div");
+      el.className = "label";
+      el.textContent = text;
+      labelLayer.appendChild(el);
+      labels.push({ object, el });
+    }
+
+    function updateLabels() {
+      const width = wrap.clientWidth;
+      const height = wrap.clientHeight;
+      const position = new THREE.Vector3();
+      for (const { object, el } of labels) {
+        object.getWorldPosition(position);
+        position.project(camera);
+        const visible = position.z < 1;
+        el.style.display = visible ? "block" : "none";
+        el.style.left = `${(position.x * 0.5 + 0.5) * width}px`;
+        el.style.top = `${(-position.y * 0.5 + 0.5) * height}px`;
+      }
+    }
+
+    function box(center, size, color, opacity) {
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(...size),
+        new THREE.MeshStandardMaterial({
+          color,
+          transparent: true,
+          opacity,
+          roughness: 0.62,
+          metalness: 0.05,
+        }),
+      );
+      mesh.position.set(...center);
+      return mesh;
+    }
+
+    function cone(center, size, color, opacity) {
+      const mesh = new THREE.Mesh(
+        new THREE.ConeGeometry(size[1] * 0.55, size[0], 4),
+        new THREE.MeshStandardMaterial({
+          color,
+          transparent: true,
+          opacity,
+          roughness: 0.62,
+          metalness: 0.05,
+        }),
+      );
+      mesh.position.set(...center);
+      mesh.rotation.z = -Math.PI / 2;
+      mesh.scale.z = size[2] / size[1];
+      return mesh;
+    }
+
+    function wingPanel(side, y, color) {
+      const shape = new THREE.Shape();
+      shape.moveTo(0.57, 0.03);
+      shape.lineTo(0.12, 0.05);
+      shape.lineTo(-0.5, -0.06);
+      shape.lineTo(0.54, -0.08);
+      shape.closePath();
+
+      const geometry = new THREE.ShapeGeometry(shape);
+      const material = new THREE.MeshStandardMaterial({
+        color,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.18,
+        roughness: 0.72,
+      });
+      const panel = new THREE.Mesh(geometry, material);
+      panel.rotation.x = Math.PI / 2;
+      panel.position.set(0, y, 0.01);
+      panel.scale.y = side === "left" ? -1 : 1;
+      return panel;
+    }
+
+    function cylinderBetween(start, end, radius, color, opacity = 1) {
+      const a = new THREE.Vector3(...start);
+      const b = new THREE.Vector3(...end);
+      const midpoint = a.clone().add(b).multiplyScalar(0.5);
+      const length = a.distanceTo(b);
+      const cylinder = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius, radius, length, 24),
+        new THREE.MeshStandardMaterial({
+          color,
+          transparent: opacity < 1,
+          opacity,
+          roughness: 0.45,
+          metalness: 0.1,
+        }),
+      );
+      cylinder.position.copy(midpoint);
+      cylinder.quaternion.setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0),
+        b.clone().sub(a).normalize(),
+      );
+      return cylinder;
+    }
+
+    function lineObject(start, end, color, width) {
+      const geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(...start),
+        new THREE.Vector3(...end),
+      ]);
+      return new THREE.Line(
+        geometry,
+        new THREE.LineBasicMaterial({ color, linewidth: width }),
+      );
+    }
+
+    function updateConnector(line, start, end) {
+      const positions = line.geometry.attributes.position.array;
+      positions[0] = start[0];
+      positions[1] = start[1];
+      positions[2] = start[2];
+      positions[3] = end[0];
+      positions[4] = end[1];
+      positions[5] = end[2];
+      line.geometry.attributes.position.needsUpdate = true;
+      line.geometry.computeBoundingSphere();
+    }
+
+    function addScaled(point, direction, scale) {
+      return point.map((value, index) => value + direction[index] * scale);
+    }
+
+    function format(values) {
+      return `(${values.map((value) => value.toFixed(3)).join(", ")})`;
+    }
+  </script>
+</body>
+</html>

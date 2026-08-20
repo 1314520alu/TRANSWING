@@ -3,43 +3,45 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Transwing 3D Body-Frame Viewer</title>
+  <title>Transwing 电机查看器</title>
   <style>
     :root {
-      --bg: #eef2f5;
+      --bg: #edf2f4;
+      --panel: rgba(255, 255, 255, 0.95);
+      --line: #ccd6dc;
       --ink: #172126;
-      --muted: #5c6970;
-      --panel: #ffffff;
-      --line: #cfd8de;
+      --muted: #5e6a71;
       --left: #d14b3f;
       --right: #1d7f96;
       --axis-x: #c6463f;
       --axis-y: #1f7f8e;
       --axis-z: #577b42;
+      --thrust: #6e58c7;
+      --path: #f0b44c;
     }
 
     * { box-sizing: border-box; }
-
     body {
       margin: 0;
       min-height: 100vh;
-      color: var(--ink);
       background: var(--bg);
+      color: var(--ink);
       font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
       overflow: hidden;
     }
 
     main {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 360px;
-      height: 100vh;
+      grid-template-columns: minmax(0, 1fr) 390px;
+      min-height: 100vh;
     }
 
     #scene-wrap {
-      position: relative;
       min-width: 0;
       min-height: 0;
-      background: #e8edf1;
+      background:
+        radial-gradient(circle at 20% 20%, rgba(255,255,255,0.46), transparent 28%),
+        linear-gradient(180deg, #eef3f6 0%, #dde6eb 100%);
     }
 
     #scene {
@@ -48,45 +50,33 @@
       display: block;
     }
 
-    .label {
-      position: absolute;
-      padding: 3px 6px;
-      border: 1px solid rgba(23, 33, 38, 0.18);
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.86);
-      color: var(--ink);
-      font-size: 12px;
-      line-height: 1.2;
-      pointer-events: none;
-      white-space: nowrap;
-      transform: translate(-50%, -50%);
-    }
-
     aside {
-      border-left: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.94);
-      padding: 20px;
       overflow: auto;
+      border-left: 1px solid var(--line);
+      background: var(--panel);
+      padding: 20px;
     }
 
     h1 {
       margin: 0 0 6px;
-      font-size: 22px;
-      letter-spacing: 0;
+      font-size: 24px;
     }
 
     .sub {
       margin: 0 0 18px;
       color: var(--muted);
       font-size: 14px;
-      line-height: 1.55;
+      line-height: 1.6;
     }
 
-    .control {
+    .control, .status-box, .motor-card {
       padding: 14px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: var(--panel);
+      background: #fff;
+    }
+
+    .control, .status-box {
       margin-bottom: 12px;
     }
 
@@ -101,8 +91,8 @@
 
     output {
       color: var(--ink);
-      font-variant-numeric: tabular-nums;
       font-weight: 700;
+      font-variant-numeric: tabular-nums;
     }
 
     input[type="range"] {
@@ -110,32 +100,32 @@
       accent-color: var(--right);
     }
 
-    .buttons {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 14px;
-    }
-
     button {
-      border: 1px solid #aebac1;
-      border-radius: 6px;
-      background: #22313a;
-      color: white;
+      width: 100%;
       min-height: 38px;
+      border: 1px solid #afbac0;
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
       font: inherit;
       cursor: pointer;
     }
 
-    button.secondary {
-      background: #ffffff;
-      color: var(--ink);
+    .button-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .button-row.single {
+      grid-template-columns: 1fr;
     }
 
     .legend {
       display: grid;
       gap: 8px;
-      margin: 14px 0;
+      margin: 14px 0 18px;
       font-size: 13px;
     }
 
@@ -153,10 +143,62 @@
       border: 1px solid rgba(0, 0, 0, 0.18);
     }
 
+    .section-title {
+      margin: 18px 0 8px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .motor-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .motor-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .motor-name {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .motor-meta {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 56px;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #23323b;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .status-box, .mono {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 10px;
+      margin-top: 8px;
       font-size: 12px;
       font-variant-numeric: tabular-nums;
     }
@@ -172,16 +214,11 @@
       text-align: left;
     }
 
-    .mono {
-      margin-top: 12px;
-      color: var(--muted);
+    .mono, .axis-table td:nth-child(2), .axis-table td:nth-child(3) {
       font-family: Consolas, "Microsoft YaHei Mono", monospace;
-      font-size: 12px;
-      line-height: 1.55;
-      white-space: pre-wrap;
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 980px) {
       main {
         grid-template-columns: 1fr;
         grid-template-rows: minmax(0, 1fr) auto;
@@ -190,7 +227,7 @@
       aside {
         border-left: 0;
         border-top: 1px solid var(--line);
-        max-height: 46vh;
+        max-height: 48vh;
       }
     }
   </style>
@@ -201,26 +238,39 @@
       <canvas id="scene"></canvas>
     </section>
     <aside>
-      <h1>Transwing 3D 机体坐标系</h1>
-      <p class="sub">原点为 CG。X 向机头，Y 向右机翼，Z 向上。电机位置来自最新 CSV 的 0 deg 与 90 deg 数据。</p>
+      <h1>Transwing 电机查看器</h1>
+      <p class="sub">稳定版可视化。左侧不是 3D 模型，而是双视图示意：上半区看顶视图，下半区看侧视图。这样你能直接确认 4 个桨的顺序、旋向、推力方向和折叠角变化。</p>
 
       <section class="control">
-        <label for="theta">折叠角 <output id="thetaOut">0 deg</output></label>
+        <label for="theta"><span>折叠角</span><output id="thetaOut">0 deg</output></label>
         <input id="theta" type="range" min="0" max="90" value="0" step="1" />
       </section>
 
-      <div class="buttons">
-        <button id="play">播放</button>
-        <button class="secondary" id="resetView">重置视角</button>
+      <div class="button-row">
+        <button id="hoverPreset">Hover 预设</button>
+        <button id="forwardPreset">Forward 预设</button>
       </div>
+      <div class="button-row">
+        <button id="spinUpPreset">全部升速</button>
+        <button id="stopMotors">全部停桨</button>
+      </div>
+      <div class="button-row single">
+        <button id="resetView">重置视图</button>
+      </div>
+
+      <div class="status-box" id="statusBox"></div>
+
+      <div class="section-title">电机转速模拟</div>
+      <section class="motor-grid" id="motorControls"></section>
 
       <div class="legend">
-        <div class="item"><span class="swatch" style="background: var(--left)"></span><span>左侧电机 / 左翼轨迹</span></div>
-        <div class="item"><span class="swatch" style="background: var(--right)"></span><span>右侧电机 / 右翼轨迹</span></div>
-        <div class="item"><span class="swatch" style="background: #202a30"></span><span>折叠转轴</span></div>
-        <div class="item"><span class="swatch" style="background: #f0b44c"></span><span>电机运动轨迹</span></div>
+        <div class="item"><span class="swatch" style="background: var(--left)"></span><span>左侧电机</span></div>
+        <div class="item"><span class="swatch" style="background: var(--right)"></span><span>右侧电机</span></div>
+        <div class="item"><span class="swatch" style="background: var(--path)"></span><span>运动轨迹</span></div>
+        <div class="item"><span class="swatch" style="background: var(--thrust)"></span><span>推力方向</span></div>
       </div>
 
+      <div class="section-title">电机当前位置</div>
       <table>
         <thead>
           <tr>
@@ -234,408 +284,519 @@
         <tbody id="rows"></tbody>
       </table>
 
+      <div class="section-title">折叠转轴数据</div>
+      <table class="axis-table">
+        <thead>
+          <tr>
+            <th>转轴</th>
+            <th>H 点</th>
+            <th>d 向量 / 端点</th>
+          </tr>
+        </thead>
+        <tbody id="axisRows"></tbody>
+      </table>
+
       <div class="mono" id="readout"></div>
     </aside>
   </main>
 
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "./vendor/three.module.js",
-        "three/addons/": "./vendor/three-addons/"
-      }
-    }
-  </script>
-  <script type="module">
-    import * as THREE from "three";
-    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-    import { AXES, BODY_FRAME, MOTORS, interpolateMotorPosition } from "./transwing_scene_data.mjs";
+  <script>
+    const BODY_FRAME = {
+      origin: "CG",
+      axes: { x: "forward", y: "right wing", z: "down" },
+    };
+
+    const AXES = [
+      { name: "left_wing_hinge_axis", label: "Left hinge", point: [0, -0.126, 0.416], direction: [-0.457, 0.771, 0.486] },
+      { name: "right_wing_hinge_axis", label: "Right hinge", point: [0, 0.126, 0.416], direction: [-0.457, -0.771, 0.486] },
+    ];
+
+    const MOTORS = [
+      { id: "M1", testLetter: "A", position: "right_front", label: "M1 / A / RF", spin: "CCW", side: "right", unfolded: [0.525, 0.32, -0.045], folded: [0.155, 0.49, -0.46] },
+      { id: "M2", testLetter: "C", position: "left_rear", label: "M2 / C / LR", spin: "CCW", side: "left", unfolded: [0.52, -0.98, -0.06], folded: [-0.48, -0.46, -0.355] },
+      { id: "M3", testLetter: "D", position: "left_front", label: "M3 / D / LF", spin: "CW", side: "left", unfolded: [0.525, -0.32, -0.045], folded: [0.155, -0.49, -0.46] },
+      { id: "M4", testLetter: "B", position: "right_rear", label: "M4 / B / RR", spin: "CW", side: "right", unfolded: [0.52, 0.98, -0.06], folded: [-0.48, 0.46, -0.355] },
+    ];
 
     const canvas = document.querySelector("#scene");
     const wrap = document.querySelector("#scene-wrap");
+    const ctx = canvas.getContext("2d");
     const thetaInput = document.querySelector("#theta");
     const thetaOut = document.querySelector("#thetaOut");
-    const playButton = document.querySelector("#play");
+    const hoverPresetButton = document.querySelector("#hoverPreset");
+    const forwardPresetButton = document.querySelector("#forwardPreset");
+    const spinUpPresetButton = document.querySelector("#spinUpPreset");
+    const stopMotorsButton = document.querySelector("#stopMotors");
     const resetViewButton = document.querySelector("#resetView");
+    const motorControls = document.querySelector("#motorControls");
+    const statusBox = document.querySelector("#statusBox");
     const rows = document.querySelector("#rows");
+    const axisRows = document.querySelector("#axisRows");
     const readout = document.querySelector("#readout");
 
     const colors = {
-      left: 0xd14b3f,
-      right: 0x1d7f96,
-      fuselage: 0x8d9ba5,
-      wing: 0xd9e1e5,
-      axis: 0x202a30,
-      path: 0xf0b44c,
-      x: 0xc6463f,
-      y: 0x1f7f8e,
-      z: 0x577b42,
+      left: "#d14b3f",
+      right: "#1d7f96",
+      thrust: "#6e58c7",
+      path: "#f0b44c",
+      axis: "#202a30",
+      axisX: "#c6463f",
+      axisY: "#1f7f8e",
+      axisZ: "#577b42",
+      ink: "#172126",
+      muted: "#6a7780",
+      hull: "#9aa7af",
+      grid: "#d7e0e6",
+      topBg: "#eef4f7",
+      sideBg: "#f7fafb",
     };
 
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xe8edf1);
+    const motorState = new Map(MOTORS.map((motor) => [motor.id, 0]));
+    const motorOutputs = new Map();
+    const rotorPhase = new Map(MOTORS.map((motor) => [motor.id, 0]));
+    let currentTheta = 0;
+    let lastFrameTime = performance.now();
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.shadowMap.enabled = true;
-
-    const camera = new THREE.PerspectiveCamera(42, 1, 0.01, 50);
-    camera.up.set(0, 0, 1);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.target.set(0.08, 0, -0.08);
-
-    const labelLayer = document.createElement("div");
-    labelLayer.style.position = "absolute";
-    labelLayer.style.inset = "0";
-    labelLayer.style.pointerEvents = "none";
-    wrap.appendChild(labelLayer);
-
-    const labels = [];
-    const motorMeshes = new Map();
-    const wingConnectors = [];
-
-    setupCamera();
-    buildLights();
-    buildReferenceGrid();
-    buildAircraftShell();
-    buildBodyAxes();
-    buildHingeAxes();
-    buildMotorPaths();
-    buildMotors();
+    buildAxisRows();
+    buildMotorControls();
     updateScene(0);
     animate();
 
-    playButton.addEventListener("click", () => {
-      playButton.dataset.playing = playButton.dataset.playing === "true" ? "false" : "true";
-      playButton.textContent = playButton.dataset.playing === "true" ? "暂停" : "播放";
+    thetaInput.addEventListener("input", () => updateScene(Number(thetaInput.value)));
+    hoverPresetButton.addEventListener("click", () => {
+      thetaInput.value = "90";
+      setAllMotorState(0.72);
+      updateScene(90);
+    });
+    forwardPresetButton.addEventListener("click", () => {
+      thetaInput.value = "0";
+      setAllMotorState(0.44);
+      updateScene(0);
+    });
+    spinUpPresetButton.addEventListener("click", () => {
+      setAllMotorState(0.82);
+      updateScene(Number(thetaInput.value));
+    });
+    stopMotorsButton.addEventListener("click", () => {
+      setAllMotorState(0);
+      updateScene(Number(thetaInput.value));
+    });
+    resetViewButton.addEventListener("click", () => {
+      thetaInput.value = "0";
+      setAllMotorState(0);
+      updateScene(0);
     });
 
-    resetViewButton.addEventListener("click", setupCamera);
-    thetaInput.addEventListener("input", () => updateScene(Number(thetaInput.value)));
-
-    function setupCamera() {
-      camera.position.set(1.65, -2.45, 1.25);
-      controls.target.set(0.08, 0, -0.08);
-      controls.update();
+    function buildAxisRows() {
+      axisRows.innerHTML = AXES.map((axis) => {
+        const seg = axisSegment(axis, 0.5);
+        return `<tr>
+          <td>${axis.label}</td>
+          <td>${format(axis.point)}</td>
+          <td>d=${format(axis.direction)}<br>d-=${format(seg.start)}<br>d+=${format(seg.end)}</td>
+        </tr>`;
+      }).join("");
     }
 
-    function buildLights() {
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa6ad, 2.5));
-      const key = new THREE.DirectionalLight(0xffffff, 2.2);
-      key.position.set(1.8, -2.2, 2.4);
-      key.castShadow = true;
-      scene.add(key);
-    }
+    function buildMotorControls() {
+      motorControls.innerHTML = MOTORS.map((motor) => `
+        <section class="motor-card">
+          <div class="motor-head">
+            <div>
+              <div class="motor-name">${motor.id} / ${motor.testLetter}</div>
+              <div class="motor-meta">${motor.position} · ${motor.spin}</div>
+            </div>
+            <span class="badge" id="out-${motor.id}">0%</span>
+          </div>
+          <input id="motor-${motor.id}" type="range" min="0" max="100" value="0" step="1" />
+        </section>
+      `).join("");
 
-    function buildReferenceGrid() {
-      const grid = new THREE.GridHelper(2.8, 14, 0xb4c1c8, 0xd3dde2);
-      grid.rotation.x = Math.PI / 2;
-      grid.position.z = -0.52;
-      scene.add(grid);
-    }
-
-    function buildAircraftShell() {
-      const fuselage = box([0.08, 0, -0.06], [1.18, 0.22, 0.18], colors.fuselage, 0.5);
-      scene.add(fuselage);
-
-      const nose = cone([0.72, 0, -0.06], [0.24, 0.22, 0.18], colors.fuselage, 0.55);
-      scene.add(nose);
-
-      const tail = box([-0.55, 0, -0.03], [0.36, 0.12, 0.1], colors.fuselage, 0.42);
-      scene.add(tail);
-
-      const leftWing = wingPanel("left", -0.52, colors.left);
-      const rightWing = wingPanel("right", 0.52, colors.right);
-      scene.add(leftWing, rightWing);
-
-      const leftLink = lineObject([0.525, -0.32, -0.045], [0.52, -0.98, -0.06], colors.left, 3);
-      const rightLink = lineObject([0.525, 0.32, -0.045], [0.52, 0.98, -0.06], colors.right, 3);
-      wingConnectors.push(leftLink, rightLink);
-      scene.add(leftLink, rightLink);
-    }
-
-    function buildBodyAxes() {
-      addArrow([0, 0, 0], [0.68, 0, 0], colors.x, "X 前");
-      addArrow([0, 0, 0], [0, 0.72, 0], colors.y, "Y 右");
-      addArrow([0, 0, 0], [0, 0, 0.58], colors.z, "Z 上");
-      addSphere([0, 0, 0], 0.025, 0x172126, "CG");
-    }
-
-    function buildHingeAxes() {
-      for (const axis of AXES) {
-        const start = addScaled(axis.point, axis.direction, -0.5);
-        const end = addScaled(axis.point, axis.direction, 0.5);
-        scene.add(cylinderBetween(start, end, 0.012, colors.axis, 0.88));
-        addSphere(axis.point, 0.022, colors.axis, axis.label);
-      }
-    }
-
-    function buildMotorPaths() {
       for (const motor of MOTORS) {
-        const points = [];
-        for (let theta = 0; theta <= 90; theta += 3) {
-          points.push(new THREE.Vector3(...interpolateMotorPosition(motor, theta)));
-        }
-        const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineDashedMaterial({
-          color: colors.path,
-          dashSize: 0.035,
-          gapSize: 0.025,
-          transparent: true,
-          opacity: 0.82,
+        const input = document.querySelector(`#motor-${motor.id}`);
+        const output = document.querySelector(`#out-${motor.id}`);
+        motorOutputs.set(motor.id, output);
+        input.addEventListener("input", () => {
+          setMotorState(motor.id, Number(input.value) / 100);
+          updateScene(Number(thetaInput.value));
         });
-        const path = new THREE.Line(geometry, material);
-        path.computeLineDistances();
-        scene.add(path);
-      }
-    }
-
-    function buildMotors() {
-      for (const motor of MOTORS) {
-        const group = new THREE.Group();
-        const color = motor.side === "left" ? colors.left : colors.right;
-
-        const hub = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.055, 0.055, 0.034, 32),
-          new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.16 }),
-        );
-        hub.rotation.x = Math.PI / 2;
-        group.add(hub);
-
-        const bladeMaterial = new THREE.MeshStandardMaterial({
-          color: 0x26343b,
-          roughness: 0.36,
-          metalness: 0.18,
-        });
-        const bladeA = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.024, 0.008), bladeMaterial);
-        const bladeB = new THREE.Mesh(new THREE.BoxGeometry(0.024, 0.24, 0.008), bladeMaterial);
-        group.add(bladeA, bladeB);
-
-        scene.add(group);
-        motorMeshes.set(motor.id, group);
-        addLabelAnchor(motor.label, group);
-
-        addSphere(motor.unfolded, 0.018, 0x56636b, `${motor.id} 0 deg`);
-        addSphere(motor.folded, 0.018, 0x56636b, `${motor.id} 90 deg`);
       }
     }
 
     function updateScene(theta) {
+      currentTheta = theta;
       thetaOut.textContent = `${theta.toFixed(0)} deg`;
-      const current = new Map();
-      for (const motor of MOTORS) {
-        const position = interpolateMotorPosition(motor, theta);
-        current.set(motor.id, position);
-        const mesh = motorMeshes.get(motor.id);
-        mesh.position.set(...position);
-        mesh.rotation.z = theta * 0.08 + (motor.spin === "CW" ? Math.PI / 4 : 0);
-      }
 
-      updateConnector(wingConnectors[0], current.get("M3"), current.get("M2"));
-      updateConnector(wingConnectors[1], current.get("M1"), current.get("M4"));
-
-      rows.innerHTML = MOTORS.map((motor) => {
-        const p = current.get(motor.id);
-        return `<tr>
+      const current = motorRowsAt(theta);
+      rows.innerHTML = current.map((motor) => `
+        <tr>
           <td>${motor.id}/${motor.testLetter}</td>
           <td>${motor.position}</td>
-          <td>${p[0].toFixed(3)}</td>
-          <td>${p[1].toFixed(3)}</td>
-          <td>${p[2].toFixed(3)}</td>
-        </tr>`;
-      }).join("");
+          <td>${motor.current[0].toFixed(3)}</td>
+          <td>${motor.current[1].toFixed(3)}</td>
+          <td>${motor.current[2].toFixed(3)}</td>
+        </tr>
+      `).join("");
+
+      const avg = current.reduce((sum, motor) => sum + (motorState.get(motor.id) || 0), 0) / current.length;
+      statusBox.textContent = [
+        `当前折叠角: ${theta.toFixed(0)} deg`,
+        `平均电机指令: ${(avg * 100).toFixed(0)}%`,
+        `状态判读: ${statusSummary(theta, avg)}`
+      ].join("\n");
 
       readout.textContent = [
         `坐标系: 原点 ${BODY_FRAME.origin}; X=${BODY_FRAME.axes.x}; Y=${BODY_FRAME.axes.y}; Z=${BODY_FRAME.axes.z}`,
-        `转轴: left H=${format(AXES[0].point)} dir=${format(AXES[0].direction)}`,
-        `转轴: right H=${format(AXES[1].point)} dir=${format(AXES[1].direction)}`,
+        `电机轴向: 0 deg 时推力朝 +X, 90 deg 时推力朝 -Z`,
+        `电机状态: ${MOTORS.map((motor) => `${motor.id}=${Math.round((motorState.get(motor.id) || 0) * 100)}%`).join("  ")}`
       ].join("\n");
     }
 
     function animate() {
       requestAnimationFrame(animate);
-      if (playButton.dataset.playing === "true") {
-        const next = (Number(thetaInput.value) + 0.5) % 91;
-        thetaInput.value = String(next);
-        updateScene(Math.round(next));
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - lastFrameTime) / 1000);
+      lastFrameTime = now;
+
+      for (const motor of MOTORS) {
+        // Canvas has +Y downward, so positive visual rotation is clockwise.
+        const direction = motor.spin === "CW" ? 1 : -1;
+        const throttle = motorState.get(motor.id) || 0;
+        rotorPhase.set(motor.id, rotorPhase.get(motor.id) + direction * dt * (1.5 + throttle * 12));
       }
-      resizeRenderer();
-      controls.update();
-      renderer.render(scene, camera);
-      updateLabels();
+
+      draw();
     }
 
-    function resizeRenderer() {
-      const width = wrap.clientWidth;
-      const height = wrap.clientHeight;
-      const needsResize = canvas.width !== Math.floor(width * renderer.getPixelRatio())
-        || canvas.height !== Math.floor(height * renderer.getPixelRatio());
-      if (needsResize) {
-        renderer.setSize(width, height, false);
-        camera.aspect = width / Math.max(1, height);
-        camera.updateProjectionMatrix();
+    function draw() {
+      resizeCanvas();
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const topRect = { x: 28, y: 28, w: w - 56, h: Math.max(220, (h - 84) * 0.52) };
+      const sideRect = { x: 28, y: topRect.y + topRect.h + 28, w: w - 56, h: h - topRect.h - 84 };
+
+      drawPanel(topRect, "顶视图");
+      drawPanel(sideRect, "侧视图");
+
+      drawTopView(topRect);
+      drawSideView(sideRect);
+    }
+
+    function drawPanel(rect, title) {
+      ctx.fillStyle = title === "顶视图" ? colors.topBg : colors.sideBg;
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.strokeStyle = colors.grid;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.fillStyle = colors.muted;
+      ctx.font = "600 14px Microsoft YaHei";
+      ctx.fillText(title, rect.x + 14, rect.y + 22);
+    }
+
+    function drawTopView(rect) {
+      const motors = motorRowsAt(currentTheta);
+      const origin = { x: rect.x + rect.w * 0.5, y: rect.y + rect.h * 0.55 };
+      const scale = Math.min(rect.w * 0.26, rect.h * 0.22);
+
+      drawGrid(origin, scale, rect, "xy");
+      drawFuselageTop(origin, scale);
+      drawMotorTrails(origin, scale, rect, "top");
+
+      for (const motor of motors) {
+        const p = motor.current;
+        const sx = origin.x + p[0] * scale;
+        const sy = origin.y + p[1] * scale;
+        drawRotorDisc(motor, sx, sy, 26 + (motorState.get(motor.id) || 0) * 8, "top");
+        drawLabel(`${motor.id}/${motor.testLetter}`, sx, sy - 34);
       }
+
+      drawAxisLegendTop(origin, scale, rect);
     }
 
-    function addArrow(start, end, color, label) {
-      const from = new THREE.Vector3(...start);
-      const to = new THREE.Vector3(...end);
-      const dir = to.clone().sub(from).normalize();
-      const length = to.distanceTo(from);
-      const arrow = new THREE.ArrowHelper(dir, from, length, color, 0.09, 0.042);
-      scene.add(arrow);
-      addLabelAt(label, end);
-    }
+    function drawSideView(rect) {
+      const motors = motorRowsAt(currentTheta);
+      const origin = { x: rect.x + rect.w * 0.22, y: rect.y + rect.h * 0.7 };
+      const scale = Math.min(rect.w * 0.42, rect.h * 0.5);
 
-    function addSphere(position, radius, color, label) {
-      const sphere = new THREE.Mesh(
-        new THREE.SphereGeometry(radius, 24, 16),
-        new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.1 }),
-      );
-      sphere.position.set(...position);
-      scene.add(sphere);
-      if (label) addLabelAnchor(label, sphere);
-      return sphere;
-    }
+      drawGrid(origin, scale, rect, "xz");
+      drawFuselageSide(origin, scale);
 
-    function addLabelAt(text, position) {
-      const anchor = new THREE.Object3D();
-      anchor.position.set(...position);
-      scene.add(anchor);
-      addLabelAnchor(text, anchor);
-    }
-
-    function addLabelAnchor(text, object) {
-      const el = document.createElement("div");
-      el.className = "label";
-      el.textContent = text;
-      labelLayer.appendChild(el);
-      labels.push({ object, el });
-    }
-
-    function updateLabels() {
-      const width = wrap.clientWidth;
-      const height = wrap.clientHeight;
-      const position = new THREE.Vector3();
-      for (const { object, el } of labels) {
-        object.getWorldPosition(position);
-        position.project(camera);
-        const visible = position.z < 1;
-        el.style.display = visible ? "block" : "none";
-        el.style.left = `${(position.x * 0.5 + 0.5) * width}px`;
-        el.style.top = `${(-position.y * 0.5 + 0.5) * height}px`;
+      for (const motor of motors) {
+        const p = motor.current;
+        const sx = origin.x + p[0] * scale;
+        const sy = origin.y + p[2] * scale;
+        drawRotorDisc(motor, sx, sy, 22 + (motorState.get(motor.id) || 0) * 8, "side");
+        drawThrustArrow(motor, sx, sy, interpolateMotorDirection(motor, currentTheta), scale * 0.25);
       }
+
+      drawAxisLegendSide(origin, scale, rect);
     }
 
-    function box(center, size, color, opacity) {
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(...size),
-        new THREE.MeshStandardMaterial({
-          color,
-          transparent: true,
-          opacity,
-          roughness: 0.62,
-          metalness: 0.05,
-        }),
-      );
-      mesh.position.set(...center);
-      return mesh;
+    function drawGrid(origin, scale, rect, mode) {
+      ctx.save();
+      ctx.strokeStyle = "#d5dfe5";
+      ctx.lineWidth = 1;
+      for (let i = -4; i <= 4; i++) {
+        if (mode === "xy") {
+          const y = origin.y + i * scale * 0.25;
+          ctx.beginPath();
+          ctx.moveTo(rect.x + 12, y);
+          ctx.lineTo(rect.x + rect.w - 12, y);
+          ctx.stroke();
+        } else {
+          const y = origin.y + i * scale * 0.18;
+          ctx.beginPath();
+          ctx.moveTo(rect.x + 12, y);
+          ctx.lineTo(rect.x + rect.w - 12, y);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
     }
 
-    function cone(center, size, color, opacity) {
-      const mesh = new THREE.Mesh(
-        new THREE.ConeGeometry(size[1] * 0.55, size[0], 4),
-        new THREE.MeshStandardMaterial({
-          color,
-          transparent: true,
-          opacity,
-          roughness: 0.62,
-          metalness: 0.05,
-        }),
-      );
-      mesh.position.set(...center);
-      mesh.rotation.z = -Math.PI / 2;
-      mesh.scale.z = size[2] / size[1];
-      return mesh;
+    function drawFuselageTop(origin, scale) {
+      ctx.save();
+      ctx.fillStyle = "#a4b1b8";
+      roundedRect(origin.x - scale * 0.5, origin.y - scale * 0.08, scale * 1.05, scale * 0.16, 12);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(origin.x + scale * 0.58, origin.y);
+      ctx.lineTo(origin.x + scale * 0.42, origin.y - scale * 0.11);
+      ctx.lineTo(origin.x + scale * 0.42, origin.y + scale * 0.11);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
 
-    function wingPanel(side, y, color) {
-      const shape = new THREE.Shape();
-      shape.moveTo(0.57, 0.03);
-      shape.lineTo(0.12, 0.05);
-      shape.lineTo(-0.5, -0.06);
-      shape.lineTo(0.54, -0.08);
-      shape.closePath();
-
-      const geometry = new THREE.ShapeGeometry(shape);
-      const material = new THREE.MeshStandardMaterial({
-        color,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.18,
-        roughness: 0.72,
-      });
-      const panel = new THREE.Mesh(geometry, material);
-      panel.rotation.x = Math.PI / 2;
-      panel.position.set(0, y, 0.01);
-      panel.scale.y = side === "left" ? -1 : 1;
-      return panel;
+    function drawFuselageSide(origin, scale) {
+      ctx.save();
+      ctx.fillStyle = "#a4b1b8";
+      roundedRect(origin.x - scale * 0.38, origin.y - scale * 0.08, scale * 0.88, scale * 0.16, 10);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(origin.x + scale * 0.55, origin.y);
+      ctx.lineTo(origin.x + scale * 0.38, origin.y - scale * 0.11);
+      ctx.lineTo(origin.x + scale * 0.38, origin.y + scale * 0.11);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     }
 
-    function cylinderBetween(start, end, radius, color, opacity = 1) {
-      const a = new THREE.Vector3(...start);
-      const b = new THREE.Vector3(...end);
-      const midpoint = a.clone().add(b).multiplyScalar(0.5);
-      const length = a.distanceTo(b);
-      const cylinder = new THREE.Mesh(
-        new THREE.CylinderGeometry(radius, radius, length, 24),
-        new THREE.MeshStandardMaterial({
-          color,
-          transparent: opacity < 1,
-          opacity,
-          roughness: 0.45,
-          metalness: 0.1,
-        }),
-      );
-      cylinder.position.copy(midpoint);
-      cylinder.quaternion.setFromUnitVectors(
-        new THREE.Vector3(0, 1, 0),
-        b.clone().sub(a).normalize(),
-      );
-      return cylinder;
+    function drawMotorTrails(origin, scale) {
+      ctx.save();
+      ctx.strokeStyle = colors.path;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      for (const motor of MOTORS) {
+        ctx.beginPath();
+        for (let theta = 0; theta <= 90; theta += 3) {
+          const p = interpolateMotorPosition(motor, theta);
+          const sx = origin.x + p[0] * scale;
+          const sy = origin.y + p[1] * scale;
+          if (theta === 0) {
+            ctx.moveTo(sx, sy);
+          } else {
+            ctx.lineTo(sx, sy);
+          }
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
-    function lineObject(start, end, color, width) {
-      const geometry = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(...start),
-        new THREE.Vector3(...end),
-      ]);
-      return new THREE.Line(
-        geometry,
-        new THREE.LineBasicMaterial({ color, linewidth: width }),
-      );
+    function drawRotorDisc(motor, x, y, radius) {
+      const sideColor = motor.side === "left" ? colors.left : colors.right;
+      const throttle = motorState.get(motor.id) || 0;
+      const phase = rotorPhase.get(motor.id) || 0;
+
+      ctx.save();
+      ctx.strokeStyle = sideColor;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.globalAlpha = 0.1 + throttle * 0.2;
+      ctx.fillStyle = sideColor;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      ctx.translate(x, y);
+      ctx.rotate(phase);
+      drawBlade(radius * 0.95, 0);
+      drawBlade(radius * 0.95, Math.PI / 2);
+      ctx.restore();
+
+      ctx.fillStyle = colors.ink;
+      ctx.font = "11px Microsoft YaHei";
+      ctx.fillText(motor.spin, x - 13, y + 4);
     }
 
-    function updateConnector(line, start, end) {
-      const positions = line.geometry.attributes.position.array;
-      positions[0] = start[0];
-      positions[1] = start[1];
-      positions[2] = start[2];
-      positions[3] = end[0];
-      positions[4] = end[1];
-      positions[5] = end[2];
-      line.geometry.attributes.position.needsUpdate = true;
-      line.geometry.computeBoundingSphere();
+    function drawBlade(length, angle) {
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.fillStyle = "#203038";
+      roundedRect(-length * 0.5, -4, length, 8, 4);
+      ctx.fill();
+      ctx.restore();
     }
 
-    function addScaled(point, direction, scale) {
-      return point.map((value, index) => value + direction[index] * scale);
+    function drawThrustArrow(motor, x, y, direction, length) {
+      const throttle = motorState.get(motor.id) || 0;
+      const dx = direction[0] * (length + throttle * 38);
+      const dy = direction[2] * (length + throttle * 38);
+      ctx.save();
+      ctx.strokeStyle = colors.thrust;
+      ctx.fillStyle = colors.thrust;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + dx, y + dy);
+      ctx.stroke();
+      const ang = Math.atan2(dy, dx);
+      ctx.translate(x + dx, y + dy);
+      ctx.rotate(ang);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-12, -6);
+      ctx.lineTo(-12, 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawAxisLegendTop(origin, scale, rect) {
+      drawColorArrow(origin.x, rect.y + 30, origin.x + scale * 0.55, rect.y + 30, colors.axisX);
+      drawColorArrow(origin.x, rect.y + 54, origin.x, rect.y + 54 + scale * 0.45, colors.axisY);
+      drawLabel("X 前", origin.x + scale * 0.62, rect.y + 30);
+      drawLabel("Y 右", origin.x + 20, rect.y + 54 + scale * 0.45);
+    }
+
+    function drawAxisLegendSide(origin, scale, rect) {
+      drawColorArrow(rect.x + 26, origin.y, rect.x + 26 + scale * 0.45, origin.y, colors.axisX);
+      drawColorArrow(rect.x + 26, origin.y, rect.x + 26, origin.y + scale * 0.35, colors.axisZ);
+      drawLabel("X 前", rect.x + 26 + scale * 0.53, origin.y);
+      drawLabel("Z 下", rect.x + 26, origin.y + scale * 0.43);
+    }
+
+    function drawColorArrow(x1, y1, x2, y2, color) {
+      const ang = Math.atan2(y2 - y1, x2 - x1);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.translate(x2, y2);
+      ctx.rotate(ang);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-11, -5);
+      ctx.lineTo(-11, 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawLabel(text, x, y) {
+      ctx.save();
+      ctx.fillStyle = colors.ink;
+      ctx.font = "12px Microsoft YaHei";
+      ctx.fillText(text, x, y);
+      ctx.restore();
+    }
+
+    function roundedRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function setMotorState(motorId, value) {
+      const clamped = Math.max(0, Math.min(1, value));
+      motorState.set(motorId, clamped);
+      const input = document.querySelector(`#motor-${motorId}`);
+      if (input) input.value = String(Math.round(clamped * 100));
+      const output = motorOutputs.get(motorId);
+      if (output) output.textContent = `${Math.round(clamped * 100)}%`;
+    }
+
+    function setAllMotorState(value) {
+      for (const motor of MOTORS) setMotorState(motor.id, value);
+    }
+
+    function statusSummary(theta, averageMotor) {
+      if (averageMotor < 0.05) return "停桨，适合只看折叠机构和电机位置。";
+      if (theta >= 75) return "接近悬停构型，推力主要朝上。";
+      if (theta <= 15) return "接近固定翼构型，推力主要朝前。";
+      return "过渡构型，位置、力臂和推力方向都在同时变化。";
+    }
+
+    function motorRowsAt(thetaDeg) {
+      return MOTORS.map((motor) => ({
+        ...motor,
+        current: interpolateMotorPosition(motor, thetaDeg),
+      }));
+    }
+
+    function interpolateMotorPosition(motor, thetaDeg) {
+      const s = smoothstep(thetaDeg / 90);
+      return motor.unfolded.map((value, index) => round6(value * (1 - s) + motor.folded[index] * s));
+    }
+
+    function interpolateMotorDirection(_motor, thetaDeg) {
+      const s = smoothstep(thetaDeg / 90);
+      return unit([1 * (1 - s), 0, -1 * s]);
+    }
+
+    function axisSegment(axis, halfLength) {
+      return {
+        start: axis.point.map((value, index) => round6(value - axis.direction[index] * halfLength)),
+        end: axis.point.map((value, index) => round6(value + axis.direction[index] * halfLength)),
+      };
+    }
+
+    function smoothstep(value) {
+      const x = Math.max(0, Math.min(1, value));
+      return x * x * (3 - 2 * x);
+    }
+
+    function unit(vector) {
+      const length = Math.hypot(vector[0], vector[1], vector[2]) || 1;
+      return vector.map((value) => round6(value / length));
+    }
+
+    function round6(value) {
+      return Math.round(value * 1e6) / 1e6;
     }
 
     function format(values) {
       return `(${values.map((value) => value.toFixed(3)).join(", ")})`;
+    }
+
+    function resizeCanvas() {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(640, wrap.clientWidth);
+      const height = Math.max(640, wrap.clientHeight);
+      const actualWidth = Math.floor(width * ratio);
+      const actualHeight = Math.floor(height * ratio);
+      if (canvas.width !== actualWidth || canvas.height !== actualHeight) {
+        canvas.width = actualWidth;
+        canvas.height = actualHeight;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      }
     }
   </script>
 </body>

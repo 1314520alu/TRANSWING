@@ -1,0 +1,26 @@
+---
+description: Transwing 知识库入口、坐标惯例与文档索引
+alwaysApply: true
+---
+
+# Transwing 知识库
+
+完整索引：`knowledge-base/README.md`。机器目录：`knowledge-base/index.yaml`。检索：`python tools/search_kb.py <关键词>`。
+
+## 坐标与 Motor
+
+- 机体坐标：原点 CG，X 前 Y 右 Z 下，单位 m
+- Motor Test：A→1, B→4, C→2, D→3
+- **实机**用 `RAW_MOTORS`（`电机位置数据.csv`）；**SITL/混控/viewer** 用 `SIM_MOTORS`（CG 前移 +0.1625 m）。勿混用
+- 改几何后需同步：`折叠角分配表.csv`、`电机混控因子.csv`、`transwing_lua_mix_model.mjs`、`scripts/transwing_dynamic_mix.lua`、SITL patch
+
+## 首飞阶段默认
+
+- `Q_FRAME_CLASS=1`（原生 Quad X），首飞不用 Lua 动态混控（17）
+- 守卫参考：`TW_SAFE_MIN=55`、`TW_BLEND_MIN=30`、`TW_BLEND_AS=13`、`TW_FW_AS=19`（见 `Transwing_守卫动作说明.md`）
+
+## 查资料优先级
+
+1. 精确参数 → 对应 `.params` 或 params 专题 md
+2. 概念/流程 → `knowledge-base/README.md` 指向的 md
+3. 不确定 → 运行 `python tools/search_kb.py <关键词>`

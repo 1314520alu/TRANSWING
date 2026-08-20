@@ -1,0 +1,102 @@
+# Transwing 知识库机器可读目录
+# 供 search_kb.py、CI、MaxKB 同步脚本使用
+
+version: 1
+updated: "2026-06-25"
+repo_root: ".."
+
+categories:
+  - id: airframe
+    title: 机体与建模
+    items:
+      - path: 当前建模数据汇总.md
+        title: 建模数据汇总
+        tags: [coordinate, motor, channel, fold]
+      - path: docs/transwing_coordinate_chain.md
+        title: 坐标链 RAW/SIM
+        tags: [coordinate, sitl, raw, sim]
+      - path: 电机位置数据.csv
+        title: 电机位置 RAW
+        tags: [csv, motor, raw]
+      - path: 折叠转轴数据.csv
+        title: 折叠转轴
+        tags: [csv, fold]
+      - path: 折叠角分配表.csv
+        title: 折叠角分配
+        tags: [csv, fold, mix]
+      - path: 电机混控因子.csv
+        title: 混控因子表
+        tags: [csv, mix]
+      - path: 输出通道建议.csv
+        title: 输出通道
+        tags: [csv, servo]
+
+  - id: firmware
+    title: 固件与参数
+    items:
+      - path: Transwing_实机固件与参数配置.md
+        title: 实机固件与参数
+        tags: [params, real, first-flight]
+      - path: docs/Transwing_多旋翼动力与滤波参数配置.md
+        title: 多旋翼动力与滤波
+        tags: [params, filter, notch, hover]
+      - path: ArduPilot_QuadPlane_TiltRotor_参数配置.md
+        title: QuadPlane 倾转参数
+        tags: [params, quadplane, tilt]
+      - path: transwing_hover_motor_filter.params
+        title: 悬停滤波 params
+        tags: [params]
+      - path: transwing_lua_sitl.params
+        title: Lua SITL params
+        tags: [params, sitl, lua]
+      - path: transwing_lua_sitl_control.params
+        title: Lua SITL 控制 params
+        tags: [params, sitl, lua]
+      - path: transwing_sitl_mp.params
+        title: MP SITL params
+        tags: [params, sitl]
+      - path: transwing_sitl_startup.params
+        title: SITL 启动 params
+        tags: [params, sitl]
+      - path: transwing_sitl_observe.params
+        title: SITL 观测 params
+        tags: [params, sitl]
+
+  - id: sitl_lua
+    title: SITL 与 Lua
+    items:
+      - path: Transwing_动态SITL运行说明.md
+        title: 动态 SITL 运行
+        tags: [sitl, runbook]
+      - path: Transwing_Lua_动态混控仿真说明.md
+        title: Lua 动态混控
+        tags: [lua, mix, sitl]
+      - path: scripts/transwing_dynamic_mix.lua
+        title: 动态混控脚本
+        tags: [lua, mix]
+      - path: patches/ardupilot-transwing-lua-motors-dynamic.md
+        title: Lua motors patch 说明
+        tags: [patch, lua]
+
+  - id: guard
+    title: 模式转换与守卫
+    items:
+      - path: Transwing_模式转换与保护说明.md
+        title: 模式转换与保护
+        tags: [transition, guard, mode]
+      - path: Transwing_守卫动作说明.md
+        title: 守卫动作 TW_*
+        tags: [guard, tw, lua]
+
+  - id: design
+    title: 设计与计划
+    items:
+      - path: docs/superpowers/specs/2026-06-21-transwing-sitl-channel-and-lua-control-design.md
+        title: SITL 通道与 Lua 设计
+        tags: [design, sitl]
+      - path: docs/superpowers/plans/2026-06-21-transwing-sitl-channel-and-lua-control.md
+        title: SITL 通道实施计划
+        tags: [plan, sitl]
+      - path: docs/superpowers/plans/2026-06-18-transwing-lua-dynamic-mix-sitl.md
+        title: Lua 混控 SITL 计划
+        tags: [plan, lua]

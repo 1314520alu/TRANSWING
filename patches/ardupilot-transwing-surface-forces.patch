@@ -1,0 +1,68 @@
+diff --git a/libraries/SITL/SIM_TranswingQuadPlane.cpp b/libraries/SITL/SIM_TranswingQuadPlane.cpp
+index c55e7c3a96..a8f31b2d10 100644
+--- a/libraries/SITL/SIM_TranswingQuadPlane.cpp
++++ b/libraries/SITL/SIM_TranswingQuadPlane.cpp
+@@ -114,6 +114,9 @@ namespace {
+ constexpr uint8_t MOTOR_COUNT = 4;
+ constexpr uint8_t MOTOR_SERVO_OFFSET = 0;  // SERVO1..SERVO4 are Motor1..Motor4
+ constexpr uint8_t FOLD_SERVO_IDX = 10;     // SERVO11_FUNCTION=41
++constexpr uint8_t AILERON_SERVO_A = 4;     // SERVO5_FUNCTION=4
++constexpr uint8_t ELEVATOR_SERVO_A = 6;    // SERVO7_FUNCTION=19
++constexpr uint8_t RUDDER_SERVO_A = 8;      // SERVO9_FUNCTION=21
+ constexpr float PWM_FOLD_Q = 1000.0f;      // native tilt value 0.0, hover/up
+ constexpr float PWM_FOLD_FW = 2000.0f;     // native tilt value 1.0, forward
+ constexpr float HOVER_THROTTLE = 0.50f;
+@@ -208,6 +211,32 @@ float pwm_to_motor_command(uint16_t pwm)
+     return constrain_float((float(pwm) - 1000.0f) * 0.001f, 0.0f, 1.0f);
+ }
+ 
++uint16_t average_servo_pwm(uint16_t a, uint16_t b)
++{
++    if (a == 0) {
++        a = 1500;
++    }
++    if (b == 0) {
++        b = 1500;
++    }
++    return uint16_t((uint32_t(a) + uint32_t(b)) / 2U);
++}
++
++void build_surface_input(const struct sitl_input &input, struct sitl_input &surface_input)
++{
++    surface_input = input;
++    // Plane::calculate_forces reads RC-style channels from servos[0..3].
++    // Transwing uses SERVO5-10 for control surfaces, not SERVO1-4 motors.
++    surface_input.servos[0] = average_servo_pwm(input.servos[AILERON_SERVO_A], input.servos[AILERON_SERVO_A + 1]);
++    surface_input.servos[1] = average_servo_pwm(input.servos[ELEVATOR_SERVO_A], input.servos[ELEVATOR_SERVO_A + 1]);
++    surface_input.servos[2] = 1000;
++    surface_input.servos[3] = average_servo_pwm(input.servos[RUDDER_SERVO_A], input.servos[RUDDER_SERVO_A + 1]);
++}
++
++void calculate_transwing_surfaces(const struct sitl_input &input,
++                                  float &aileron_norm,
++                                  float &elevator_norm,
++                                  float &rudder_norm)
++{
++    struct sitl_input surface_input;
++    build_surface_input(input, surface_input);
++    aileron_norm = constrain_float((float(surface_input.servos[0]) - 1500.0f) / 500.0f, -1.0f, 1.0f);
++    elevator_norm = constrain_float((float(surface_input.servos[1]) - 1500.0f) / 500.0f, -1.0f, 1.0f);
++    rudder_norm = constrain_float((float(surface_input.servos[3]) - 1500.0f) / 500.0f, -1.0f, 1.0f);
++}
++
+ MotorGeometry interpolate_geometry(float theta_deg, uint8_t motor_idx)
+ {
+     if (theta_deg <= geometry_table[0].theta_deg) {
+@@ -311,8 +340,11 @@ void TranswingQuadPlane::update(const struct sitl_input &input)
+ {
+     update_wind(input);
+ 
++    struct sitl_input surface_input;
++    build_surface_input(input, surface_input);
++
+     Vector3f rot_accel;
+-    calculate_forces(input, rot_accel);
++    calculate_forces(surface_input, rot_accel);
+ 
+     Vector3f quad_rot_accel;
+     Vector3f quad_accel_body;

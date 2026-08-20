@@ -1,0 +1,11 @@
+diff --git a/libraries/SITL/SIM_TranswingQuadPlane.cpp b/libraries/SITL/SIM_TranswingQuadPlane.cpp
+index c55e7c3a96..a1d52f7a12 100644
+--- a/libraries/SITL/SIM_TranswingQuadPlane.cpp
++++ b/libraries/SITL/SIM_TranswingQuadPlane.cpp
+@@ -237,6 +237,7 @@ void TranswingQuadPlane::update(const struct sitl_input &input)
+     update_dynamics(rot_accel);
+     update_external_payload(input);
+     update_position();
+     time_advance();
++    update_mag_field_bf();
++}

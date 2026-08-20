@@ -1,0 +1,384 @@
+diff --git a/Tools/autotest/default_params/quadplane-transwing.parm b/Tools/autotest/default_params/quadplane-transwing.parm
+new file mode 100644
+index 0000000000..6424fb7560
+--- /dev/null
++++ b/Tools/autotest/default_params/quadplane-transwing.parm
+@@ -0,0 +1,34 @@
++Q_ENABLE         1
++Q_FRAME_CLASS    1
++Q_FRAME_TYPE     1
++
++# Use ArduPlane native continuous tiltrotor control. SERVO11 is the shared
++# fold/tilt actuator observed by the Transwing SITL physics model.
++Q_TILT_ENABLE    1
++Q_TILT_TYPE      0
++Q_TILT_MASK      15
++Q_TILT_MAX       45
++Q_TILT_RATE_UP   5
++Q_TILT_RATE_DN   5
++
++SERVO1_FUNCTION  33
++SERVO2_FUNCTION  34
++SERVO3_FUNCTION  35
++SERVO4_FUNCTION  36
++SERVO5_FUNCTION  4
++SERVO6_FUNCTION  4
++SERVO7_FUNCTION  19
++SERVO8_FUNCTION  19
++SERVO9_FUNCTION  21
++SERVO10_FUNCTION 21
++SERVO11_FUNCTION 41
++SERVO11_MIN      1000
++SERVO11_TRIM     1000
++SERVO11_MAX      2000
++
++# Forward throttle is provided by the tilting VTOL motors in this first model.
++SERVO3_FUNCTION  0
++
++Q_M_PWM_MIN      1000
++Q_M_PWM_MAX      2000
++Q_M_SPIN_ARM     0.08
++Q_M_SPIN_MIN     0.12
++
++SCR_ENABLE       1
+diff --git a/Tools/autotest/pysim/vehicleinfo.py b/Tools/autotest/pysim/vehicleinfo.py
+index 1be889b332..8219f62caf 100644
+--- a/Tools/autotest/pysim/vehicleinfo.py
++++ b/Tools/autotest/pysim/vehicleinfo.py
+@@ -316,6 +316,11 @@ class VehicleInfo(object):
+                 "default_params_filename": ["default_params/quadplane.parm",
+                                             "default_params/quadplane-tilt.parm"],
+             },
++            "quadplane-transwing": {
++                "waf_target": "bin/arduplane",
++                "default_params_filename": ["default_params/quadplane.parm",
++                                            "default_params/quadplane-transwing.parm"],
++            },
+             "firefly": {
+                 "waf_target": "bin/arduplane",
+                 "default_params_filename": ["default_params/quadplane.parm",
+diff --git a/libraries/AP_HAL_SITL/SITL_cmdline.cpp b/libraries/AP_HAL_SITL/SITL_cmdline.cpp
+index 7d569a2fdb..82672a428d 100644
+--- a/libraries/AP_HAL_SITL/SITL_cmdline.cpp
++++ b/libraries/AP_HAL_SITL/SITL_cmdline.cpp
+@@ -16,6 +16,7 @@
+ #include <SITL/SIM_Plane.h>
+ #include <SITL/SIM_Glider.h>
+ #include <SITL/SIM_QuadPlane.h>
++#include <SITL/SIM_TranswingQuadPlane.h>
+ #include <SITL/SIM_Rover.h>
+ #include <SITL/SIM_BalanceBot.h>
+ #include <SITL/SIM_Sailboat.h>
+@@ -124,6 +125,7 @@ static const struct {
+     const char *name;
+     Aircraft *(*constructor)(const char *frame_str);
+ } model_constructors[] = {
++    { "quadplane-transwing", TranswingQuadPlane::create },
+     { "quadplane",          QuadPlane::create },
+     { "xplane",             XPlane::create },
+     { "firefly",            QuadPlane::create },
+diff --git a/libraries/SITL/SIM_TranswingQuadPlane.cpp b/libraries/SITL/SIM_TranswingQuadPlane.cpp
+new file mode 100644
+index 0000000000..c55e7c3a96
+--- /dev/null
++++ b/libraries/SITL/SIM_TranswingQuadPlane.cpp
+@@ -0,0 +1,242 @@
++/*
++   This program is free software: you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation, either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++/*
++  Transwing quadplane simulator class.
++
++  This model keeps ArduPlane's native QuadPlane/Tiltrotor control path, but
++  replaces the fixed SITL multicopter frame with a geometry table where motor
++  position and thrust direction change with the fold angle.
++*/
++
++#include "SIM_TranswingQuadPlane.h"
++
++#include <stdio.h>
++
++using namespace SITL;
++
++namespace {
++
++constexpr uint8_t MOTOR_COUNT = 4;
++constexpr uint8_t MOTOR_SERVO_OFFSET = 0;  // SERVO1..SERVO4 are Motor1..Motor4
++constexpr uint8_t FOLD_SERVO_IDX = 10;     // SERVO11_FUNCTION=41
++constexpr float PWM_FOLD_Q = 1000.0f;      // native tilt value 0.0, hover/up
++constexpr float PWM_FOLD_FW = 2000.0f;     // native tilt value 1.0, forward
++constexpr float HOVER_THROTTLE = 0.50f;
++constexpr float MAX_THRUST_WEIGHT_RATIO = 2.0f;
++constexpr float ROTOR_TORQUE_COEFF = 0.035f;
++constexpr float TERMINAL_ROTATION_RATE = radians(720.0f);
++
++struct MotorGeometry {
++    Vector3f position;
++    Vector3f thrust_vector;
++    float yaw_drag_sign;
++};
++
++struct FoldGeometry {
++    float theta_deg;
++    MotorGeometry motor[MOTOR_COUNT];
++};
++
++const FoldGeometry geometry_table[] {
++    {
++        0.0f,
++        {
++            { Vector3f{ 0.687500f,  0.320000f, -0.045000f}, Vector3f{1.000000f, 0.0f,  0.000000f},  1.0f },
++            { Vector3f{ 0.682500f, -0.980000f, -0.060000f}, Vector3f{1.000000f, 0.0f,  0.000000f},  1.0f },
++            { Vector3f{ 0.687500f, -0.320000f, -0.045000f}, Vector3f{1.000000f, 0.0f,  0.000000f}, -1.0f },
++            { Vector3f{ 0.682500f,  0.980000f, -0.060000f}, Vector3f{1.000000f, 0.0f,  0.000000f}, -1.0f },
++        }
++    },
++    {
++        15.0f,
++        {
++            { Vector3f{ 0.660093f,  0.332593f, -0.075741f}, Vector3f{0.996815f, 0.0f, -0.079745f},  1.0f },
++            { Vector3f{ 0.608426f, -0.941481f, -0.081852f}, Vector3f{0.996815f, 0.0f, -0.079745f},  1.0f },
++            { Vector3f{ 0.660093f, -0.332593f, -0.075741f}, Vector3f{0.996815f, 0.0f, -0.079745f}, -1.0f },
++            { Vector3f{ 0.608426f,  0.941481f, -0.081852f}, Vector3f{0.996815f, 0.0f, -0.079745f}, -1.0f },
++        }
++    },
++    {
++        30.0f,
++        {
++            { Vector3f{ 0.591574f,  0.364074f, -0.152593f}, Vector3f{0.943858f, 0.0f, -0.330350f},  1.0f },
++            { Vector3f{ 0.423241f, -0.845185f, -0.136481f}, Vector3f{0.943858f, 0.0f, -0.330350f},  1.0f },
++            { Vector3f{ 0.591574f, -0.364074f, -0.152593f}, Vector3f{0.943858f, 0.0f, -0.330350f}, -1.0f },
++            { Vector3f{ 0.423241f,  0.845185f, -0.136481f}, Vector3f{0.943858f, 0.0f, -0.330350f}, -1.0f },
++        }
++    },
++    {
++        45.0f,
++        {
++            { Vector3f{ 0.502500f,  0.405000f, -0.252500f}, Vector3f{0.707107f, 0.0f, -0.707107f},  1.0f },
++            { Vector3f{ 0.182500f, -0.720000f, -0.207500f}, Vector3f{0.707107f, 0.0f, -0.707107f},  1.0f },
++            { Vector3f{ 0.502500f, -0.405000f, -0.252500f}, Vector3f{0.707107f, 0.0f, -0.707107f}, -1.0f },
++            { Vector3f{ 0.182500f,  0.720000f, -0.207500f}, Vector3f{0.707107f, 0.0f, -0.707107f}, -1.0f },
++        }
++    },
++    {
++        60.0f,
++        {
++            { Vector3f{ 0.413426f,  0.445926f, -0.352407f}, Vector3f{0.330350f, 0.0f, -0.943858f},  1.0f },
++            { Vector3f{-0.058241f, -0.594815f, -0.278519f}, Vector3f{0.330350f, 0.0f, -0.943858f},  1.0f },
++            { Vector3f{ 0.413426f, -0.445926f, -0.352407f}, Vector3f{0.330350f, 0.0f, -0.943858f}, -1.0f },
++            { Vector3f{-0.058241f,  0.594815f, -0.278519f}, Vector3f{0.330350f, 0.0f, -0.943858f}, -1.0f },
++        }
++    },
++    {
++        75.0f,
++        {
++            { Vector3f{ 0.344907f,  0.477407f, -0.429259f}, Vector3f{0.079745f, 0.0f, -0.996815f},  1.0f },
++            { Vector3f{-0.243426f, -0.498519f, -0.333148f}, Vector3f{0.079745f, 0.0f, -0.996815f},  1.0f },
++            { Vector3f{ 0.344907f, -0.477407f, -0.429259f}, Vector3f{0.079745f, 0.0f, -0.996815f}, -1.0f },
++            { Vector3f{-0.243426f,  0.498519f, -0.333148f}, Vector3f{0.079745f, 0.0f, -0.996815f}, -1.0f },
++        }
++    },
++    {
++        90.0f,
++        {
++            { Vector3f{ 0.317500f,  0.490000f, -0.460000f}, Vector3f{0.000000f, 0.0f, -1.000000f},  1.0f },
++            { Vector3f{-0.317500f, -0.460000f, -0.355000f}, Vector3f{0.000000f, 0.0f, -1.000000f},  1.0f },
++            { Vector3f{ 0.317500f, -0.490000f, -0.460000f}, Vector3f{0.000000f, 0.0f, -1.000000f}, -1.0f },
++            { Vector3f{-0.317500f,  0.460000f, -0.355000f}, Vector3f{0.000000f, 0.0f, -1.000000f}, -1.0f },
++        }
++    },
++};
++
++float pwm_to_motor_command(uint16_t pwm)
++{
++    if (pwm == 0) {
++        return 0.0f;
++    }
++    return constrain_float((float(pwm) - 1000.0f) * 0.001f, 0.0f, 1.0f);
++}
++
++MotorGeometry interpolate_geometry(float theta_deg, uint8_t motor_idx)
++{
++    if (theta_deg <= geometry_table[0].theta_deg) {
++        return geometry_table[0].motor[motor_idx];
++    }
++
++    const uint8_t last = ARRAY_SIZE(geometry_table) - 1;
++    if (theta_deg >= geometry_table[last].theta_deg) {
++        return geometry_table[last].motor[motor_idx];
++    }
++
++    for (uint8_t i = 0; i < last; i++) {
++        const auto &a = geometry_table[i];
++        const auto &b = geometry_table[i + 1];
++        if (theta_deg > b.theta_deg) {
++            continue;
++        }
++        const float t = (theta_deg - a.theta_deg) / (b.theta_deg - a.theta_deg);
++        MotorGeometry out {
++            a.motor[motor_idx].position + (b.motor[motor_idx].position - a.motor[motor_idx].position) * t,
++            a.motor[motor_idx].thrust_vector + (b.motor[motor_idx].thrust_vector - a.motor[motor_idx].thrust_vector) * t,
++            a.motor[motor_idx].yaw_drag_sign,
++        };
++        out.thrust_vector.normalize();
++        return out;
++    }
++
++    return geometry_table[last].motor[motor_idx];
++}
++
++} // namespace
++
++TranswingQuadPlane::TranswingQuadPlane(const char *frame_str) :
++    Plane(frame_str)
++{
++    ground_behavior = GROUND_BEHAVIOR_NO_MOVEMENT;
++    thrust_scale = 0.0f;
++    mass = 3.6f;
++    moment_of_inertia = Vector3f{0.45f, 0.65f, 0.90f};
++    frame_height = 0.45f;
++    lock_step_scheduled = true;
++
++    filtered_servo_setup(FOLD_SERVO_IDX, PWM_FOLD_Q, PWM_FOLD_FW, 90.0f);
++    printf("Loaded Transwing QuadPlane SITL dynamic geometry\n");
++}
++
++float TranswingQuadPlane::fold_theta_deg(const struct sitl_input &input) const
++{
++    const uint16_t pwm = input.servos[FOLD_SERVO_IDX] == 0 ? PWM_FOLD_Q : input.servos[FOLD_SERVO_IDX];
++    const float tilt_forward = constrain_float((float(pwm) - PWM_FOLD_Q) / (PWM_FOLD_FW - PWM_FOLD_Q), 0.0f, 1.0f);
++    return 90.0f * (1.0f - tilt_forward);
++}
++
++void TranswingQuadPlane::calculate_transwing_forces(const struct sitl_input &input,
++                                                    Vector3f &rot_accel,
++                                                    Vector3f &body_accel)
++{
++    const float theta = fold_theta_deg(input);
++    const float max_thrust_per_motor = (mass * GRAVITY_MSS * MAX_THRUST_WEIGHT_RATIO) / MOTOR_COUNT;
++    Vector3f total_force;
++    Vector3f total_torque;
++    float throttle_sum = 0.0f;
++
++    for (uint8_t i = 0; i < MOTOR_COUNT; i++) {
++        const uint8_t servo_idx = MOTOR_SERVO_OFFSET + i;
++        const float command = pwm_to_motor_command(input.servos[servo_idx]);
++        const float thrust_n = command * max_thrust_per_motor;
++        const MotorGeometry geom = interpolate_geometry(theta, i);
++
++        const Vector3f force = geom.thrust_vector * thrust_n;
++        const Vector3f arm_torque = geom.position % force;
++        const Vector3f rotor_torque = geom.thrust_vector * (-geom.yaw_drag_sign * thrust_n * ROTOR_TORQUE_COEFF);
++
++        total_force += force;
++        total_torque += arm_torque + rotor_torque;
++        throttle_sum += command;
++
++        motor_mask |= 1U << servo_idx;
++        rpm[servo_idx] = command * 7000.0f;
++    }
++
++    rot_accel.x = total_torque.x / moment_of_inertia.x;
++    rot_accel.y = total_torque.y / moment_of_inertia.y;
++    rot_accel.z = total_torque.z / moment_of_inertia.z;
++
++    rot_accel.x -= gyro.x * radians(400.0f) / TERMINAL_ROTATION_RATE;
++    rot_accel.y -= gyro.y * radians(400.0f) / TERMINAL_ROTATION_RATE;
++    rot_accel.z -= gyro.z * radians(400.0f) / TERMINAL_ROTATION_RATE;
++
++    body_accel = total_force / mass;
++
++    const float throttle_avg = throttle_sum / MOTOR_COUNT;
++    battery_voltage = sitl->batt_voltage - 0.8f * throttle_avg;
++    battery_current = 65.0f * sq(throttle_avg);
++    battery.set_current(battery_current);
++
++    add_noise(throttle_avg / HOVER_THROTTLE);
++}
++
++void TranswingQuadPlane::update(const struct sitl_input &input)
++{
++    update_wind(input);
++
++    Vector3f rot_accel;
++    calculate_forces(input, rot_accel);
++
++    Vector3f quad_rot_accel;
++    Vector3f quad_accel_body;
++    calculate_transwing_forces(input, quad_rot_accel, quad_accel_body);
++
++    rot_accel += quad_rot_accel;
++    accel_body += quad_accel_body;
++
++    update_dynamics(rot_accel);
++    update_external_payload(input);
++    update_position();
++    time_advance();
++    update_mag_field_bf();
++}
+diff --git a/libraries/SITL/SIM_TranswingQuadPlane.h b/libraries/SITL/SIM_TranswingQuadPlane.h
+new file mode 100644
+index 0000000000..c132878ddc
+--- /dev/null
++++ b/libraries/SITL/SIM_TranswingQuadPlane.h
+@@ -0,0 +1,47 @@
++/*
++   This program is free software: you can redistribute it and/or modify
++   it under the terms of the GNU General Public License as published by
++   the Free Software Foundation, either version 3 of the License, or
++   (at your option) any later version.
++
++   This program is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++   GNU General Public License for more details.
++
++   You should have received a copy of the GNU General Public License
++   along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ */
++/*
++  Transwing quadplane simulator class
++*/
++
++#pragma once
++
++#include "SIM_Plane.h"
++
++namespace SITL {
++
++/*
++  QuadPlane/Tiltrotor SITL model with fold-angle-dependent motor geometry.
++ */
++class TranswingQuadPlane : public Plane {
++public:
++    TranswingQuadPlane(const char *frame_str);
++
++    /* update model by one time step */
++    void update(const struct sitl_input &input) override;
++
++    /* static object creator */
++    static Aircraft *create(const char *frame_str) {
++        return NEW_NOTHROW TranswingQuadPlane(frame_str);
++    }
++
++private:
++    Vector3f moment_of_inertia;
++
++    float fold_theta_deg(const struct sitl_input &input) const;
++    void calculate_transwing_forces(const struct sitl_input &input,
++                                    Vector3f &rot_accel,
++                                    Vector3f &body_accel);
++};
++
++} // namespace SITL

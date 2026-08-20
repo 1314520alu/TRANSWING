@@ -1,0 +1,50 @@
+diff --git a/Tools/autotest/default_params/quadplane-transwing.parm b/Tools/autotest/default_params/quadplane-transwing.parm
+index 4d89f0c0000..b7d9d7c0000 100644
+--- a/Tools/autotest/default_params/quadplane-transwing.parm
++++ b/Tools/autotest/default_params/quadplane-transwing.parm
+@@ -8,8 +8,8 @@ Q_TILT_ENABLE    1
+ Q_TILT_TYPE      0
+ Q_TILT_MASK      15
+ Q_TILT_MAX       45
+-Q_TILT_RATE_UP   5
+-Q_TILT_RATE_DN   5
++Q_TILT_RATE_UP   4.5
++Q_TILT_RATE_DN   4.5
+ 
+ SERVO1_FUNCTION  33
+ SERVO2_FUNCTION  34
+diff --git a/libraries/SITL/SIM_TranswingQuadPlane.cpp b/libraries/SITL/SIM_TranswingQuadPlane.cpp
+index 384e7c00000..46a88f90000 100644
+--- a/libraries/SITL/SIM_TranswingQuadPlane.cpp
++++ b/libraries/SITL/SIM_TranswingQuadPlane.cpp
+@@ -26,6 +26,10 @@ constexpr float HOVER_THROTTLE = 0.50f;
+ constexpr float MAX_THRUST_WEIGHT_RATIO = 2.0f;
+ constexpr float ROTOR_TORQUE_COEFF = 0.035f;
+ constexpr float TERMINAL_ROTATION_RATE = radians(720.0f);
++constexpr float MOT_PWM_MIN = 1000.0f;
++constexpr float MOT_PWM_MAX = 2000.0f;
++constexpr float MOT_SPIN_MIN = 0.12f;
++constexpr float MOT_SPIN_MAX = 0.95f;
+ 
+ struct MotorGeometry {
+     Vector3f position;
+@@ -130,10 +134,15 @@ const FoldGeometry geometry_table[] {
+     },
+ };
+ 
+-float pwm_to_motor_command(uint16_t pwm)
++float pwm_to_motor_command(uint16_t pwm)
+ {
+     if (pwm == 0) {
+         return 0.0f;
+     }
+-    return constrain_float((float(pwm) - 1000.0f) * 0.001f, 0.0f, 1.0f);
++    const float pwm_range = MOT_PWM_MAX - MOT_PWM_MIN;
++    const float pwm_thrust_min = MOT_PWM_MIN + MOT_SPIN_MIN * pwm_range;
++    const float pwm_thrust_max = MOT_PWM_MIN + MOT_SPIN_MAX * pwm_range;
++    const float pwm_thrust_range = pwm_thrust_max - pwm_thrust_min;
++
++    return constrain_float((float(pwm) - pwm_thrust_min) / pwm_thrust_range, 0.0f, 1.0f);
+ }
+ 
+ MotorGeometry interpolate_geometry(float theta_deg, uint8_t motor_idx)

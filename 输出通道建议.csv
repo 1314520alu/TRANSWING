@@ -1,0 +1,13 @@
+channel,function,device,position,ardupilot_motor_test,spin,notes
+1,MOTOR 1,ESC,right_front,A,CCW,右前电机
+2,MOTOR 2,ESC,left_rear,C,CCW,左后电机
+3,MOTOR 3,ESC,left_front,D,CW,左前电机
+4,MOTOR 4,ESC,right_rear,B,CW,右后电机
+5,left_aileron,servo,left_aileron,,,"左副翼舵机"
+6,right_aileron,servo,right_aileron,,,"右副翼舵机"
+7,left_elevator,servo,left_horizontal_tail,,,"左水平尾翼舵机"
+8,right_elevator,servo,right_horizontal_tail,,,"右水平尾翼舵机"
+9,left_rudder,servo,left_vertical_tail,,,"左侧垂直尾翼舵机，独立"
+10,right_rudder,servo,right_vertical_tail,,,"右侧垂直尾翼舵机，独立"
+11,wing_fold_servo,servo,wing_fold_actuator,,,"机翼折叠控制舵机，推荐独立通道"
+12,center_elevator,servo,center_horizontal_tail,,,"中间升降舵，可接 AUX"

@@ -1,0 +1,13 @@
+diff --git a/Tools/autotest/default_params/quadplane-transwing.parm b/Tools/autotest/default_params/quadplane-transwing.parm
+--- a/Tools/autotest/default_params/quadplane-transwing.parm
++++ b/Tools/autotest/default_params/quadplane-transwing.parm
+@@ -24,9 +24,6 @@ SERVO11_MIN      1000
+ SERVO11_TRIM     1000
+ SERVO11_MAX      2000
+ 
+-# Forward throttle is provided by the tilting VTOL motors in this first model.
+-SERVO3_FUNCTION  0
+-
+ Q_M_PWM_MIN      1000
+ Q_M_PWM_MAX      2000
+ Q_M_SPIN_ARM     0.08

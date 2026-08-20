@@ -1,0 +1,9 @@
+diff --git a/libraries/SITL/SIM_TranswingQuadPlane.h b/libraries/SITL/SIM_TranswingQuadPlane.h
+--- a/libraries/SITL/SIM_TranswingQuadPlane.h
++++ b/libraries/SITL/SIM_TranswingQuadPlane.h
+@@ -45,3 +45,5 @@ private:
+                                     Vector3f &rot_accel,
+                                     Vector3f &body_accel);
+ };
++
++} // namespace SITL

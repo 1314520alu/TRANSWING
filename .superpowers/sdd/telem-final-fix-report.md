@@ -1,0 +1,1 @@
+- Open capture: menu offers telem.csv file picker (Capture filter) or capture folder; load path uses full-sample analyze via existing _load_capture_path.

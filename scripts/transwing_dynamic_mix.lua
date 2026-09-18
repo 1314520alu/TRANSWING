@@ -6,7 +6,7 @@ local MAV_SEVERITY_INFO = 6
 local MAV_SEVERITY_WARNING = 4
 
 local TABLE_KEY = 91
-assert(param:add_table(TABLE_KEY, "TW_", 29), "could not add TW_ parameter table")
+assert(param:add_table(TABLE_KEY, "TW_", 33), "could not add TW_ parameter table")
 
 assert(param:add_param(TABLE_KEY, 1, "ENABLE", 1), "could not add TW_ENABLE")
 assert(param:add_param(TABLE_KEY, 2, "LOG_ONLY", 1), "could not add TW_LOG_ONLY")
@@ -37,15 +37,89 @@ assert(param:add_param(TABLE_KEY, 26, "MIX_BLEND", 0), "could not add TW_MIX_BLE
 assert(param:add_param(TABLE_KEY, 27, "GUARD_MS", 1000), "could not add TW_GUARD_MS")
 assert(param:add_param(TABLE_KEY, 28, "BLEND_MIN", 30), "could not add TW_BLEND_MIN")
 assert(param:add_param(TABLE_KEY, 29, "ASST_EN", 1), "could not add TW_ASST_EN")
+assert(param:add_param(TABLE_KEY, 30, "FB_EN", 1), "could not add TW_FB_EN")
+assert(param:add_param(TABLE_KEY, 31, "FB_REQ", 1), "could not add TW_FB_REQ")
+assert(param:add_param(TABLE_KEY, 32, "FB_STALE", 1000), "could not add TW_FB_STALE")
+assert(param:add_param(TABLE_KEY, 33, "THETA_MAX", 90), "could not add TW_THETA_MAX")
 
 local P = {}
 for _, name in ipairs({
   "ENABLE", "LOG_ONLY", "FOLD_CH", "PWM_FW", "PWM_Q", "RATE_UP", "RATE_DN",
   "TIMEOUT", "OUT_GAIN", "THR", "ROLL", "PITCH", "YAW", "GUARD", "SAFE_MIN",
   "BLEND_AS", "FW_AS", "ATT_DANG", "DESC_DANG", "SAT_PWM", "ACCEL_MIN", "ATT_ABORT",
-  "MIX_MODE", "INPUT_SRC", "GUARD_FBWA", "MIX_BLEND", "GUARD_MS", "BLEND_MIN", "ASST_EN"
+  "MIX_MODE", "INPUT_SRC", "GUARD_FBWA", "MIX_BLEND", "GUARD_MS", "BLEND_MIN", "ASST_EN",
+  "FB_EN", "FB_REQ", "FB_STALE", "THETA_MAX"
 }) do
   P[name] = Parameter("TW_" .. name)
+end
+
+local mavlink_msgs = require("MAVLink/mavlink_msgs")
+local NVF_MSG_ID = mavlink_msgs.get_msgid("NAMED_VALUE_FLOAT")
+
+local fold_pct = 0
+local fold_cnt = 0
+local fold_flt = 0
+local fold_pwm_fb = 0
+local fold_hld = 0
+local fold_have_pct = false
+local fold_last_rx_ms = nil
+local mavlink_rx_ready = false
+local warned_fb_req = false
+
+local function ensure_mavlink_rx()
+  if mavlink_rx_ready then return true end
+  local ok = pcall(function()
+    mavlink:init(32, false)
+    mavlink:register_rx_msgid(NVF_MSG_ID)
+  end)
+  mavlink_rx_ready = ok
+  return ok
+end
+
+local function nvf_name(raw)
+  if raw == nil then return "" end
+  return tostring(raw):match("^[^%z]*") or ""
+end
+
+local function poll_fold_mavlink(now_ms)
+  if P.FB_EN:get() < 0.5 then return end
+  if not ensure_mavlink_rx() then return end
+  local msg = mavlink:receive_chan()
+  while msg do
+    local ok, decoded = pcall(mavlink_msgs.decode, msg, NVF_MSG_ID)
+    if ok and decoded then
+      local name = nvf_name(decoded.name)
+      local value = decoded.value
+      if name == "fold_pct" then
+        fold_pct = value
+        fold_have_pct = true
+        fold_last_rx_ms = now_ms
+      elseif name == "fold_cnt" then
+        fold_cnt = value
+        fold_last_rx_ms = now_ms
+      elseif name == "fold_flt" then
+        fold_flt = value
+        fold_last_rx_ms = now_ms
+      elseif name == "fold_pwm" then
+        fold_pwm_fb = value
+        fold_last_rx_ms = now_ms
+      elseif name == "fold_hld" then
+        fold_hld = value
+        fold_last_rx_ms = now_ms
+      end
+    end
+    msg = mavlink:receive_chan()
+  end
+end
+
+local function compute_fb_ok(now_ms)
+  if P.FB_EN:get() < 0.5 then return false end
+  if not fold_have_pct then return false end
+  if fold_last_rx_ms == nil then return false end
+  if (now_ms - fold_last_rx_ms) > P.FB_STALE:get() then return false end
+  if fold_flt == 1 then return false end
+  if fold_hld == 1 then return false end
+  return true
 end
 
 local FACTOR_TABLE = {
@@ -163,6 +237,11 @@ local function clamp(value, min_value, max_value)
   if value < min_value then return min_value end
   if value > max_value then return max_value end
   return value
+end
+
+local function fold_pct_to_theta(pct)
+  local p = clamp(pct, 0, 100)
+  return (p / 100.0) * P.THETA_MAX:get()
 end
 
 local function lerp(a, b, ratio)

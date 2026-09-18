@@ -505,7 +505,7 @@ test("Lua script defaults to log-only mode and writes isolated scripting functio
 test("Lua script exposes staged mix modes before direct motor control", () => {
   const lua = readFileSync(new URL("./scripts/transwing_dynamic_mix.lua", import.meta.url), "utf8");
 
-  assert.match(lua, /add_table\(TABLE_KEY,\s*"TW_",\s*29\)/);
+  assert.match(lua, /add_table\(TABLE_KEY,\s*"TW_",\s*33\)/);
   assert.match(lua, /add_param\(TABLE_KEY,\s*29,\s*"ASST_EN",\s*1\)/);
   assert.match(lua, /add_param\(TABLE_KEY,\s*23,\s*"MIX_MODE",\s*0\)/);
   assert.match(lua, /add_param\(TABLE_KEY,\s*26,\s*"MIX_BLEND",\s*0\)/);
@@ -591,4 +591,15 @@ test("selectThetaEst uses feedback and aligns open-loop when fbOk", () => {
   const ol = selectThetaEst({ fbOk: false, foldPct: 50, thetaMax: 90, thetaOl: 12 });
   assert.equal(ol.thetaEst, 12);
   assert.equal(ol.thetaOl, 12);
+});
+
+test("lua declares FB params and registers NAMED_VALUE_FLOAT", () => {
+  const lua = readFileSync(new URL("./scripts/transwing_dynamic_mix.lua", import.meta.url), "utf8");
+  assert.match(lua, /add_param\(TABLE_KEY,\s*30,\s*"FB_EN"/);
+  assert.match(lua, /add_param\(TABLE_KEY,\s*31,\s*"FB_REQ"/);
+  assert.match(lua, /add_param\(TABLE_KEY,\s*32,\s*"FB_STALE"/);
+  assert.match(lua, /add_param\(TABLE_KEY,\s*33,\s*"THETA_MAX"/);
+  assert.match(lua, /register_rx_msgid/);
+  assert.match(lua, /NAMED_VALUE_FLOAT|msgid.*251|MSG_ID/);
+  assert.match(lua, /fold_pct/);
 });

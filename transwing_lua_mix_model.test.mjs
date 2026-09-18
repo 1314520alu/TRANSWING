@@ -616,7 +616,8 @@ test("lua declares FB params and registers NAMED_VALUE_FLOAT", () => {
   assert.match(lua, /fold_pct/);
   assert.match(module, /NAMED_VALUE_FLOAT\.id = 251/);
   assert.match(module, /NAMED_VALUE_FLOAT\.crc_extra = 170/);
-  assert.match(module, /\{\s*"name",\s*"<c10"\s*\}/);
+  assert.match(module, /\{\s*"value",\s*"<f"\s*\}/);
+  assert.match(module, /"value"[\s\S]*"name"/);
 });
 
 test("lua selects theta from feedback and gates CONTROL on FB_REQ", () => {

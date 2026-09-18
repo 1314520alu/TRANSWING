@@ -24,3 +24,9 @@
 
 - 本机未安装 `lua` / `luac`，未做 Lua 解释器语法检查。
 - 尚未进行 SITL 或实机串口联调。
+
+## 第二轮修复（NVF 线序 + FB_EN 队列排空）
+
+- `NAMED_VALUE_FLOAT.fields` 改为 pymavlink 线序：`time_boot_ms`, `value`, `name`（id=251, crc_extra=170 不变）。
+- `TW_FB_EN` 0→1 上升沿：重置 `fold_have_pct` / `fold_last_rx_ms` 后，当 tick 仅排空 RX 队列、不写入 `fold_*`；下一 tick 起才接受反馈。
+- 测试新增断言：模块源码中 `"value"` 出现在 `"name"` 之前。

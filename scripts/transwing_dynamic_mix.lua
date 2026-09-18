@@ -68,6 +68,7 @@ local mavlink_rx_ready = false
 local mavlink_rx_attempted = false
 local warned_mavlink_rx = false
 local fold_fb_enabled_prev = false
+local fold_fb_drain_rx = false
 local warned_fb_req = false
 
 local function ensure_mavlink_rx()
@@ -102,35 +103,42 @@ local function poll_fold_mavlink(now_ms)
   if fb_enabled and not fold_fb_enabled_prev then
     fold_have_pct = false
     fold_last_rx_ms = nil
+    fold_fb_drain_rx = true
   end
   fold_fb_enabled_prev = fb_enabled
 
   if not ensure_mavlink_rx() then return end
+  local drain_only = fold_fb_drain_rx
   local msg = mavlink:receive_chan()
   while msg do
-    local ok, decoded = pcall(mavlink_msgs.decode, msg, NVF_MSG_MAP)
-    if fb_enabled and ok and decoded then
-      local name = nvf_name(decoded.name)
-      local value = decoded.value
-      if name == "fold_pct" then
-        fold_pct = value
-        fold_have_pct = true
-        fold_last_rx_ms = now_ms
-      elseif name == "fold_cnt" then
-        fold_cnt = value
-        fold_last_rx_ms = now_ms
-      elseif name == "fold_flt" then
-        fold_flt = value
-        fold_last_rx_ms = now_ms
-      elseif name == "fold_pwm" then
-        fold_pwm_fb = value
-        fold_last_rx_ms = now_ms
-      elseif name == "fold_hld" then
-        fold_hld = value
-        fold_last_rx_ms = now_ms
+    if not drain_only then
+      local ok, decoded = pcall(mavlink_msgs.decode, msg, NVF_MSG_MAP)
+      if fb_enabled and ok and decoded then
+        local name = nvf_name(decoded.name)
+        local value = decoded.value
+        if name == "fold_pct" then
+          fold_pct = value
+          fold_have_pct = true
+          fold_last_rx_ms = now_ms
+        elseif name == "fold_cnt" then
+          fold_cnt = value
+          fold_last_rx_ms = now_ms
+        elseif name == "fold_flt" then
+          fold_flt = value
+          fold_last_rx_ms = now_ms
+        elseif name == "fold_pwm" then
+          fold_pwm_fb = value
+          fold_last_rx_ms = now_ms
+        elseif name == "fold_hld" then
+          fold_hld = value
+          fold_last_rx_ms = now_ms
+        end
       end
     end
     msg = mavlink:receive_chan()
+  end
+  if drain_only then
+    fold_fb_drain_rx = false
   end
 end
 

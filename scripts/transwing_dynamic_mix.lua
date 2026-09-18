@@ -286,7 +286,7 @@ local function lerp(a, b, ratio)
   return a + (b - a) * ratio
 end
 
-local function pwm_to_ST.theta_target(pwm, pwm_fw, pwm_q)
+local function pwm_to_theta_target(pwm, pwm_fw, pwm_q)
   if pwm == nil or pwm_fw == pwm_q then return ST.theta_target end
   local ratio = clamp((pwm - pwm_fw) / (pwm_q - pwm_fw), 0, 1)
   return ratio * 90
@@ -296,7 +296,7 @@ local function theta_to_pwm(theta, pwm_fw, pwm_q)
   return math.floor(pwm_fw + clamp(theta, 0, 90) / 90 * (pwm_q - pwm_fw) + 0.5)
 end
 
-local function step_ST.theta_estimate(theta, target, dt, rate_up, rate_dn)
+local function step_theta_estimate(theta, target, dt, rate_up, rate_dn)
   local delta = target - theta
   if delta == 0 or dt <= 0 then return theta end
   local rate = delta > 0 and rate_up or rate_dn
@@ -319,16 +319,16 @@ local function read_ap_fold_pwm(fold_chan)
   return SRV_Channels:get_output_pwm_chan(fold_chan)
 end
 
-local function update_ap_fold_target(raw_pwm, pwm_fw, pwm_q, flight_mode, airspeed, ST.theta_cmd, prev_target, dt, rate_up, rate_dn)
+local function update_ap_fold_target(raw_pwm, pwm_fw, pwm_q, flight_mode, airspeed, theta_cmd, prev_target, dt, rate_up, rate_dn)
   local inferred = infer_ap_fold_target(flight_mode, airspeed)
   if inferred ~= nil then return inferred end
 
-  local from_pwm = pwm_to_ST.theta_target(raw_pwm, pwm_fw, pwm_q)
+  local from_pwm = pwm_to_theta_target(raw_pwm, pwm_fw, pwm_q)
   local max_step = math.max(rate_up, rate_dn) * math.max(dt, 0.05) * 2 + 2
 
   if prev_target == nil then return from_pwm end
 
-  if math.abs(from_pwm - ST.theta_cmd) <= max_step + 1 then
+  if math.abs(from_pwm - theta_cmd) <= max_step + 1 then
     return from_pwm
   end
   if math.abs(from_pwm - prev_target) > max_step + 1 then
@@ -341,8 +341,8 @@ local function fold_slew_active(mix_mode)
   return mix_mode == MIX_MODE_CONTROL
 end
 
-local function apply_fold_servo_output(fold_chan, ST.theta_cmd, pwm_fw, pwm_q, timeout_ms)
-  local cmd_pwm = theta_to_pwm(ST.theta_cmd, pwm_fw, pwm_q)
+local function apply_fold_servo_output(fold_chan, theta_cmd, pwm_fw, pwm_q, timeout_ms)
+  local cmd_pwm = theta_to_pwm(theta_cmd, pwm_fw, pwm_q)
   SRV_Channels:set_output_pwm_chan_timeout(fold_chan, cmd_pwm, timeout_ms)
   ST.last_fold_cmd_pwm = cmd_pwm
   return cmd_pwm
@@ -822,7 +822,7 @@ local function update()
 
   if fold_slew then
     if not ST.fold_cmd_init then
-      ST.theta_ol = pwm_to_ST.theta_target(fold_pwm, pwm_fw, pwm_q)
+      ST.theta_ol = pwm_to_theta_target(fold_pwm, pwm_fw, pwm_q)
       ST.theta_cmd = ST.theta_ol
       ST.theta_est = fb_ok_now and fold_pct_to_theta(FB.pct) or ST.theta_ol
       if fb_ok_now then ST.theta_ol = ST.theta_est end
@@ -834,7 +834,7 @@ local function update()
     )
     ST.theta_target = ST.theta_ap_target
   else
-    ST.theta_target = pwm_to_ST.theta_target(fold_pwm, pwm_fw, pwm_q)
+    ST.theta_target = pwm_to_theta_target(fold_pwm, pwm_fw, pwm_q)
     ST.theta_ap_target = ST.theta_target
     ST.fold_cmd_init = false
     ST.last_fold_cmd_pwm = nil
@@ -847,7 +847,7 @@ local function update()
   end
 
   if not fold_slew then
-    ST.theta_ol = step_ST.theta_estimate(ST.theta_ol, ST.theta_target, dt, rate_up, rate_dn)
+    ST.theta_ol = step_theta_estimate(ST.theta_ol, ST.theta_target, dt, rate_up, rate_dn)
     if fb_ok_now then
       ST.theta_est = fold_pct_to_theta(FB.pct)
       ST.theta_ol = ST.theta_est
@@ -904,8 +904,8 @@ local function update()
     slew_target = allowed_theta
   end
   if fold_slew then
-    ST.theta_cmd = step_ST.theta_estimate(ST.theta_cmd, slew_target, dt, rate_up, rate_dn)
-    ST.theta_ol = step_ST.theta_estimate(ST.theta_ol, slew_target, dt, rate_up, rate_dn)
+    ST.theta_cmd = step_theta_estimate(ST.theta_cmd, slew_target, dt, rate_up, rate_dn)
+    ST.theta_ol = step_theta_estimate(ST.theta_ol, slew_target, dt, rate_up, rate_dn)
     if fb_ok_now then
       ST.theta_est = fold_pct_to_theta(FB.pct)
       ST.theta_ol = ST.theta_est

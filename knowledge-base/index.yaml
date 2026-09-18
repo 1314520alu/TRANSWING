@@ -2,7 +2,7 @@
 # 供 search_kb.py、CI、MaxKB 同步脚本使用
 
 version: 1
-updated: "2026-06-25"
+updated: "2026-09-18"
 repo_root: ".."
 
 categories:
@@ -71,6 +71,9 @@ categories:
       - path: Transwing_Lua_动态混控仿真说明.md
         title: Lua 动态混控
         tags: [lua, mix, sitl]
+      - path: Transwing_折叠执行器_MAVLink回传说明.md
+        title: 折叠执行器 MAVLink 回传
+        tags: [lua, fold, mavlink, encoder, actuator]
       - path: scripts/transwing_dynamic_mix.lua
         title: 动态混控脚本
         tags: [lua, mix]

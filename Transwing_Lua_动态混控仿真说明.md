@@ -1,6 +1,6 @@
 # Transwing Lua 脚本参数与运行说明
 
-本文档说明 `scripts/transwing_dynamic_mix.lua` 创建的 **29 个 `TW_*` 参数**、过渡守卫逻辑、日志格式，以及 SITL / 实机试飞的推荐配置。
+本文档说明 `scripts/transwing_dynamic_mix.lua` 创建的 **33 个 `TW_*` 参数**、过渡守卫逻辑、日志格式，以及 SITL / 实机试飞的推荐配置。
 
 **实机固件类型、刷机顺序、AP+TW 完整参数块**见 **`Transwing_实机固件与参数配置.md`**。
 
@@ -14,12 +14,14 @@
 
 | 功能 | 说明 |
 |------|------|
-| **折叠角估计** | 读取折叠舵机 PWM，映射为目标角 `theta_target`；按执行器速度开环估算 `theta_est` |
+| **折叠角估计** | PWM → `theta_target`；`theta_est` 优先 MAVLink `fold_pct`（`TW_FB_*`），失效时回退 `TW_RATE_*` 开环 |
 | **动态混控** | 在 0/15/30/45/60/75/90° 混控表之间插值，计算 M1–M4 的 Lua 混控 PWM |
 | **过渡守卫** | 按目标角 + 空速 + 姿态 + 下沉率判断风险，必要时 Hold 折叠角或 Abort 回 Q |
 | **DataFlash 日志** | 每周期写 `TWNG`（混控）、`TWTR`（过渡守卫）、`TWAS`（assist 联动） |
 
-**重要**：当前折叠机构无角度传感器反馈，`theta_est` 是开环估算，不是实测角。
+**折叠角来源（2026-09）**：`TW_FB_EN=1` 且反馈有效时，`theta_est = fold_pct / 100 × TW_THETA_MAX`（实测角）；超时、`fold_flt=1` 或 `fold_hld=1` 时回退 `TW_RATE_*` 开环。`TW_FB_EN=0` 则始终开环。
+
+协议与接线见 **[Transwing_折叠执行器_MAVLink回传说明.md](./Transwing_折叠执行器_MAVLink回传说明.md)**。`MIX_MODE=2`（CONTROL）在 `TW_FB_REQ=1` 且无有效反馈时会被禁止接管。
 
 ---
 
@@ -32,7 +34,7 @@
 | `SCR_ENABLE` | `1` | 启用 Lua 脚本 |
 | 脚本路径 | `APM/scripts/transwing_dynamic_mix.lua` | 上传后**重启飞控** |
 
-脚本首次加载时通过 `param:add_table(91, "TW_", 28)` 创建参数表。Mission Planner → **Full Parameter Tree** 搜索 `TW_` 应看到 28 项。
+脚本首次加载时通过 `param:add_table(91, "TW_", 33)` 创建参数表。Mission Planner → **Full Parameter Tree** 搜索 `TW_` 应看到 33 项。
 
 ### 2.2 启动确认
 
@@ -81,6 +83,10 @@ TW-DYNMIX: running, mix_mode=0 log_only=1.0 blend=0.00 Motors_dynamic=...
 | `TW_ROLL` | 0 | 0 | 台架调试 |
 | `TW_PITCH` | 0 | 0 | 台架调试 |
 | `TW_YAW` | 0 | 0 | 台架调试 |
+| `TW_FB_EN` | 1 | 1 | 折叠反馈 |
+| `TW_FB_REQ` | 1 | 1 | 折叠反馈 |
+| `TW_FB_STALE` | 1000 | 1000 | 折叠反馈 |
+| `TW_THETA_MAX` | 90 | 90 | 折叠反馈 |
 
 ---
 
@@ -170,6 +176,26 @@ TW-DYNMIX: running, mix_mode=0 log_only=1.0 blend=0.00 Motors_dynamic=...
 | **触发条件** | `|theta_target - theta_est| > 2°` 且距上次目标变化已超过 `TW_TIMEOUT` |
 | **报警** | GCS：`TW-DYNMIX: fold estimate timeout` |
 | **实测意义** | 机构卡滞、PWM 映射错误、速率设得过慢时会触发 |
+
+#### `TW_FB_EN` / `TW_FB_REQ` / `TW_FB_STALE` / `TW_THETA_MAX`
+
+| 参数 | 默认 | 含义 |
+|------|-----:|------|
+| `TW_FB_EN` | 1 | 启用折叠 MAVLink 反馈接收（`NAMED_VALUE_FLOAT` msgid 251） |
+| `TW_FB_REQ` | 1 | 无有效反馈时禁止 `MIX_MODE=2` CONTROL 接管电机混控 |
+| `TW_FB_STALE` | 1000 | 反馈超时（ms）；超过此时间无任一字段帧则视为失效 |
+| `TW_THETA_MAX` | 90 | `fold_pct`（0–100）→ 角度的满行程（deg），与混控表 0…90° 对齐 |
+
+**`theta_est` 双轨逻辑**：
+
+1. **反馈轨**（`TW_FB_EN=1` 且 `fb_ok`）：`theta_est = fold_pct / 100 × TW_THETA_MAX`；同时把开环状态 `theta_ol` 同步为实测角。  
+2. **开环轨**（反馈关闭或失效）：`theta_ol = step_theta_estimate(..., TW_RATE_UP/DN)`，`theta_est = theta_ol`。
+
+`fb_ok` 条件：已收到 `fold_pct`、距上次 RX ≤ `TW_FB_STALE`、`fold_flt≠1`、`fold_hld≠1`。
+
+**CONTROL 写舵机**：`MIX_MODE=2` 且守卫 Hold/Abort 时，折叠 PWM 仍由指令角 `theta_cmd_out`（开环 slew）写出，**不用**反馈角直接写舵机。
+
+实机接线与字段语义见 **[Transwing_折叠执行器_MAVLink回传说明.md](./Transwing_折叠执行器_MAVLink回传说明.md)**。
 
 ---
 
@@ -371,7 +397,7 @@ SITL 日志实测（`00000023.BIN`）：55° Hold 时空速约 10.8–12.0 m/s�
 | 字段 | 含义 |
 |------|------|
 | `Targ` | 目标折叠角 θ（deg） |
-| `Est` | 估算折叠角 θ（deg） |
+| `Est` | 估算折叠角 θ（deg）；反馈有效时为实测角，否则为开环估计 |
 | `Fold` | 折叠舵机 PWM |
 | `M1`–`M4` | Lua 计算的混控 PWM |
 | `A1`–`A4` | AP 实际 Motor1–4 PWM |
@@ -395,10 +421,18 @@ python tools/compare_twng_rcou.py path/to/log.BIN
 | `Sat` | 电机饱和 0/1 |
 | `Act` | 0=ALLOW，1=HOLD，2=ABORT_TO_Q |
 
-快速查看最新值：
+### 6.3 `TWFB`（折叠反馈）
 
-```bash
-### 6.3 `TWAS`（assist 联动）
+| 字段 | 含义 |
+|------|------|
+| `Pct` | 板端 `fold_pct`（0–100） |
+| `Cnt` | 板端 `fold_cnt`（编码器计数） |
+| `Flt` | 舵机故障闩锁（0 正常 / 1 故障） |
+| `Hld` | HOLD 状态（0 跟控 / 1 HOLD） |
+| `Ok` | 反馈是否有效（1=用于 `theta_est`） |
+| `Src` | 角来源标记（1=反馈，0=开环） |
+
+### 6.4 `TWAS`（assist 联动）
 
 | 字段 | 含义 |
 |------|------|
@@ -460,6 +494,11 @@ TW_ATT_DANG,55
 TW_DESC_DANG,-8
 TW_GUARD_FBWA,1
 TW_GUARD_MS,1000
+
+TW_FB_EN,1
+TW_FB_REQ,1
+TW_FB_STALE,1000
+TW_THETA_MAX,90
 ```
 
 ### 8.2 SITL / 后期动态混控接管
@@ -497,7 +536,7 @@ Lua 输出到 Scripting1–4，**不改变 SERVO1–4 电机输出**。
 ### 9.1 地面
 
 1. 上传脚本，`SCR_ENABLE=1`，重启。
-2. MP 搜索 `TW_`，确认 28 个参数存在。
+2. MP 搜索 `TW_`，确认 33 个参数存在。
 3. 手动/Q 模式动 `SERVO11`，看 `TWNG.Targ` 是否 0°–90° 变化合理。
 4. 核对 `TW_PWM_FW/Q` 与 `SERVO11_MIN/MAX` 一致。
 
@@ -529,8 +568,11 @@ flowchart TD
   A[每 50–100 ms update] --> B{TW_ENABLE?}
   B -- 否 --> A
   B -- 是 --> C[读 SERVO11 PWM → theta_target]
-  C --> D[按 RATE_UP/DN 更新 theta_est]
-  D --> E[插值混控表 → M1-M4]
+  C --> C2{TW_FB 有效?}
+  C2 -- 是 --> D1[fold_pct → theta_est]
+  C2 -- 否 --> D2[按 RATE_UP/DN 开环 theta_est]
+  D1 --> E[插值混控表 → M1-M4]
+  D2 --> E
   E --> F[读空速/姿态/爬升率]
   F --> G[evaluate_transition → TWTR]
   G --> H{守卫 Hold/Abort?}
@@ -553,6 +595,7 @@ flowchart TD
 | 文件 | 说明 |
 |------|------|
 | `scripts/transwing_dynamic_mix.lua` | 脚本源码 |
+| `Transwing_折叠执行器_MAVLink回传说明.md` | F103 执行器 MAVLink 回传与 `TW_FB_*` 对接 |
 | `transwing_sitl_observe.params` | 实测/观察配置 |
 | `transwing_sitl_mp.params` | SITL 混控接管配置 |
 | `ArduPilot_QuadPlane_TiltRotor_参数配置.md` | AP 原生 QuadPlane 参数 |
@@ -565,11 +608,11 @@ flowchart TD
 
 ## 12. 已知限制
 
-1. **无折叠角传感器**：`theta_est` 为开环估算。
-2. **`TW_SAFE_MIN` 未接入逻辑**：请使用 `TW_ACCEL_MIN`。
+1. **反馈失效时仍开环**：`TW_FB_STALE` 超时或 `fold_flt`/`fold_hld` 时 `theta_est` 回退速率估计；实机应监控 `TWFB.Ok`。
+2. **`TW_FB_REQ=1` 时无反馈不可 CONTROL**：`MIX_MODE=2` 会降为 MIRROR，需先确认 `TWFB.Ok=1` 再接管。
 3. **守卫 Hold 与 AP 原生倾转并存**：需协调 `Q_TILT_MAX` 与 Lua 门槛。
 4. **动态混控与 AP 原生输出可能不一致**：日志中 M1–M4 与 A1–A4 常有较大偏差，接管前必须对比验证。
-5. **实机动态混控前**：建议增加角度反馈或行程/endstop 检测。
+5. **CONTROL 写折叠舵机仍用指令 slew 角**：反馈只影响 `theta_est`/混控/守卫，不直接写 PWM。
 
 ---
 

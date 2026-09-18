@@ -41,6 +41,7 @@
 | 守卫动作 TW_* | [Transwing_守卫动作说明.md](../Transwing_守卫动作说明.md) |
 | SITL 运行 | [Transwing_动态SITL运行说明.md](../Transwing_动态SITL运行说明.md) |
 | Lua 动态混控 | [Transwing_Lua_动态混控仿真说明.md](../Transwing_Lua_动态混控仿真说明.md) |
+| 折叠执行器角度回传 / Lua 对接 | [Transwing_折叠执行器_MAVLink回传说明.md](../Transwing_折叠执行器_MAVLink回传说明.md) |
 | ArduPilot patch 说明 | [patches/ardupilot-transwing-lua-motors-dynamic.md](../patches/ardupilot-transwing-lua-motors-dynamic.md) |
 
 ---
@@ -79,6 +80,7 @@
 |------|------|
 | [Transwing_动态SITL运行说明.md](../Transwing_动态SITL运行说明.md) | 动态 SITL 启动与诊断 |
 | [Transwing_Lua_动态混控仿真说明.md](../Transwing_Lua_动态混控仿真说明.md) | Lua 混控仿真 |
+| [Transwing_折叠执行器_MAVLink回传说明.md](../Transwing_折叠执行器_MAVLink回传说明.md) | F103 执行器 MAVLink 回传与 Lua 对接 |
 | [scripts/transwing_dynamic_mix.lua](../scripts/transwing_dynamic_mix.lua) | 动态混控 Lua 脚本 |
 | [Transwing_模式转换与保护说明.md](../Transwing_模式转换与保护说明.md) | 模式转换逻辑 |
 | [Transwing_守卫动作说明.md](../Transwing_守卫动作说明.md) | TW_* 守卫参数与动作 |

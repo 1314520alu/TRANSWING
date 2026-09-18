@@ -603,3 +603,12 @@ test("lua declares FB params and registers NAMED_VALUE_FLOAT", () => {
   assert.match(lua, /NAMED_VALUE_FLOAT|msgid.*251|MSG_ID/);
   assert.match(lua, /fold_pct/);
 });
+
+test("lua selects theta from feedback and gates CONTROL on FB_REQ", () => {
+  const lua = readFileSync(new URL("./scripts/transwing_dynamic_mix.lua", import.meta.url), "utf8");
+  assert.match(lua, /theta_ol/);
+  assert.match(lua, /compute_fb_ok/);
+  assert.match(lua, /logger:write\("TWFB"/);
+  assert.match(lua, /FB_REQ/);
+  assert.match(lua, /fold estimate timeout|TW_DEG/);
+});

@@ -202,6 +202,7 @@ local MODE_QSTABILIZE = 17
 local K_TILT_MOTORS_FRONT = 41
 
 local theta_est = 0
+local theta_ol = 0
 local theta_target = 0
 local theta_ap_target = nil
 local fold_cmd_init = false
@@ -493,9 +494,10 @@ local function mode_allows_lua_mix(mode)
   return false
 end
 
-local function can_takeover_motors(mix_mode, action, flight_mode, target, estimate)
+local function can_takeover_motors(mix_mode, action, flight_mode, target, estimate, fb_ok_flag)
   if P.LOG_ONLY:get() >= 0.5 then return false end
   if mix_mode ~= MIX_MODE_CONTROL then return false end
+  if P.FB_REQ:get() >= 0.5 and not fb_ok_flag then return false end
   if action ~= ACTION.ALLOW then return false end
   if not mode_allows_lua_mix(flight_mode) then return false end
   if math.abs(target - estimate) >= 3 then return false end
@@ -649,13 +651,22 @@ local function build_guard_reason(target, airspeed, roll_deg, pitch_deg, climb_r
   return table.concat(reasons, "; ")
 end
 
-local function effective_mix_mode()
+local function effective_mix_mode(fb_ok_now)
   local mode = math.floor(P.MIX_MODE:get() + 0.5)
   if mode < MIX_MODE_OBSERVE then mode = MIX_MODE_OBSERVE end
   if mode > MIX_MODE_CONTROL then mode = MIX_MODE_CONTROL end
   if P.LOG_ONLY:get() < 0.5 and mode == MIX_MODE_OBSERVE then
+    mode = MIX_MODE_MIRROR
+  end
+  if mode == MIX_MODE_CONTROL and P.FB_REQ:get() >= 0.5 and not fb_ok_now then
+    if not warned_fb_req then
+      gcs:send_text(MAV_SEVERITY_WARNING,
+        SCRIPT_NAME .. ": FB_REQ blocks CONTROL (no fold feedback)")
+      warned_fb_req = true
+    end
     return MIX_MODE_MIRROR
   end
+  if fb_ok_now then warned_fb_req = false end
   return mode
 end
 
@@ -737,8 +748,11 @@ local function update()
 
   if P.ENABLE:get() < 0.5 then return update, 100 end
 
+  poll_fold_mavlink(now_ms)
+  local fb_ok_now = compute_fb_ok(now_ms)
+
   if not announced then
-    local mix_mode = effective_mix_mode()
+    local mix_mode = effective_mix_mode(fb_ok_now)
     local dyn_hint = Motors_dynamic ~= nil and "Motors_dynamic=ok" or "Motors_dynamic=missing"
     gcs:send_text(MAV_SEVERITY_INFO, string.format(
       "%s: running, mix_mode=%d log_only=%s blend=%.2f %s",
@@ -748,7 +762,7 @@ local function update()
     last_ann_log = P.LOG_ONLY:get()
   end
 
-  local mix_mode_now = effective_mix_mode()
+  local mix_mode_now = effective_mix_mode(fb_ok_now)
   local log_only_now = P.LOG_ONLY:get()
   if mix_mode_now ~= last_ann_mix or math.abs(log_only_now - (last_ann_log or -1)) > 0.01 then
     gcs:send_text(MAV_SEVERITY_INFO, string.format(
@@ -765,14 +779,17 @@ local function update()
   local rate_dn = P.RATE_DN:get()
   local fold_slew = fold_slew_active(mix_mode_now)
   local fold_pwm = read_ap_fold_pwm(fold_chan)
+  local theta_cmd_out = nil
 
   local flight_mode = get_flight_mode()
   local airspeed = read_airspeed()
 
   if fold_slew then
     if not fold_cmd_init then
-      theta_est = pwm_to_theta_target(fold_pwm, pwm_fw, pwm_q)
-      theta_ap_target = theta_est
+      theta_ol = pwm_to_theta_target(fold_pwm, pwm_fw, pwm_q)
+      theta_est = fb_ok_now and fold_pct_to_theta(fold_pct) or theta_ol
+      if fb_ok_now then theta_ol = theta_est end
+      theta_ap_target = theta_ol
       fold_cmd_init = true
     end
     theta_ap_target = update_ap_fold_target(
@@ -793,7 +810,13 @@ local function update()
   end
 
   if not fold_slew then
-    theta_est = step_theta_estimate(theta_est, theta_target, dt, rate_up, rate_dn)
+    theta_ol = step_theta_estimate(theta_ol, theta_target, dt, rate_up, rate_dn)
+    if fb_ok_now then
+      theta_est = fold_pct_to_theta(fold_pct)
+      theta_ol = theta_est
+    else
+      theta_est = theta_ol
+    end
   end
 
   local throttle, roll, pitch, yaw = read_control_inputs()
@@ -844,7 +867,14 @@ local function update()
     slew_target = allowed_theta
   end
   if fold_slew then
-    theta_est = step_theta_estimate(theta_est, slew_target, dt, rate_up, rate_dn)
+    theta_ol = step_theta_estimate(theta_ol, slew_target, dt, rate_up, rate_dn)
+    theta_cmd_out = theta_ol
+    if fb_ok_now then
+      theta_est = fold_pct_to_theta(fold_pct)
+      theta_ol = theta_est
+    else
+      theta_est = theta_ol
+    end
   end
 
   local factors = interpolate_factors(theta_est)
@@ -854,13 +884,17 @@ local function update()
   local fold_cmd_pwm = fold_pwm or 0
   if fold_slew then
     local fold_timeout = math.max(FOLD_OVERRIDE_MS, math.floor(P.GUARD_MS:get() + 0.5))
-    fold_cmd_pwm = apply_fold_servo_output(fold_chan, theta_est, pwm_fw, pwm_q, fold_timeout)
+    fold_cmd_pwm = apply_fold_servo_output(fold_chan, theta_cmd_out, pwm_fw, pwm_q, fold_timeout)
   end
 
   logger:write("TWNG", "Targ,Est,Fold,M1,M2,M3,M4,A1,A2,A3,A4", "fffffffffff",
     theta_target, theta_est, fold_cmd_pwm,
     pwm[1], pwm[2], pwm[3], pwm[4],
     motor_pwm[1], motor_pwm[2], motor_pwm[3], motor_pwm[4])
+
+  local fb_src = fb_ok_now and 1 or 0
+  logger:write("TWFB", "Pct,Cnt,Flt,Hld,Ok,Src", "ffffff",
+    fold_pct, fold_cnt, fold_flt, fold_hld, fb_ok_now and 1 or 0, fb_src)
 
   logger:write("TWTR", "Targ,Est,Allow,Phase,Risk,AS,Roll,Pitch,Climb,Sat,Act", "fffffffffff",
     theta_target, theta_est, allowed_theta, phase, risk, airspeed, roll_deg, pitch_deg, climb_filt, saturation, action)
@@ -896,7 +930,7 @@ local function update()
     last_guard_reason = nil
   end
 
-  local mix_mode = effective_mix_mode()
+  local mix_mode = mix_mode_now
   if mix_mode == MIX_MODE_MIRROR then
     for i = 1, 4 do
       -- Function IDs 94-97 are Scripting1-Scripting4 diagnostic outputs (mirror mode only).
@@ -909,7 +943,7 @@ local function update()
     else
       motors_dynamic_active = false
       warn_missing_motors_dynamic()
-      if can_takeover_motors(mix_mode, action, flight_mode, theta_target, theta_est) then
+      if can_takeover_motors(mix_mode, action, flight_mode, theta_target, theta_est, fb_ok_now) then
         local blend = clamp(P.MIX_BLEND:get(), 0, 1)
         for i = 1, 4 do
           local blended = math.floor(lerp(pwm[i], motor_pwm[i], blend) + 0.5)

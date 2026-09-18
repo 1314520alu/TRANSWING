@@ -1,5 +1,5 @@
 -- Transwing fold-angle estimator, dynamic mix prototype, and transition guard.
--- SITL-first script: motor mix outputs stay isolated unless TW_LOG_ONLY=0.
+-- SITL-first: motor mix outputs stay isolated unless TW_LOG_ONLY=0.
 
 local SCRIPT_NAME = "TW-DYNMIX"
 local MAV_SEVERITY_INFO = 6
@@ -23,8 +23,8 @@ assert(param:add_param(TABLE_KEY, 12, "PITCH", 0), "could not add TW_PITCH")
 assert(param:add_param(TABLE_KEY, 13, "YAW", 0), "could not add TW_YAW")
 assert(param:add_param(TABLE_KEY, 14, "GUARD", 1), "could not add TW_GUARD")
 assert(param:add_param(TABLE_KEY, 15, "SAFE_MIN", 55), "could not add TW_SAFE_MIN")
-assert(param:add_param(TABLE_KEY, 16, "BLEND_AS", 13), "could not add TW_BLEND_AS")
-assert(param:add_param(TABLE_KEY, 17, "FW_AS", 19), "could not add TW_FW_AS")
+assert(param:add_param(TABLE_KEY, 16, "BLEND_AS", 11), "could not add TW_BLEND_AS")
+assert(param:add_param(TABLE_KEY, 17, "FW_AS", 15), "could not add TW_FW_AS")
 assert(param:add_param(TABLE_KEY, 18, "ATT_DANG", 55), "could not add TW_ATT_DANG")
 assert(param:add_param(TABLE_KEY, 19, "DESC_DANG", -8), "could not add TW_DESC_DANG")
 assert(param:add_param(TABLE_KEY, 20, "SAT_PWM", 1980), "could not add TW_SAT_PWM")
@@ -71,25 +71,29 @@ local FB = {
   enabled_prev = false,
   drain_rx = false,
   warned_req = false,
+  last_gcs_ms = nil,
 }
 
 local function ensure_mavlink_rx()
   if FB.rx_ready then return true end
   if FB.rx_attempted then return false end
   FB.rx_attempted = true
-  local ok = pcall(function()
+  local ok, err = pcall(function()
     FB.msgs = require("MAVLink/mavlink_msgs")
     local discovered_id = FB.msgs.get_msgid("NAMED_VALUE_FLOAT")
     if discovered_id ~= FB.msg_id then
       error("unexpected NAMED_VALUE_FLOAT msgid")
     end
-    mavlink:init(32, 1)
+    mavlink:init(25, 1)
     mavlink:register_rx_msgid(FB.msg_id)
   end)
   FB.rx_ready = ok
   if not ok and not FB.warned_rx then
-    gcs:send_text(MAV_SEVERITY_WARNING,
-      SCRIPT_NAME .. ": fold MAVLink unavailable; using open-loop")
+    local why = tostring(err or "?")
+    -- Prefer the human part after the last colon/slash for GCS 50-char limit.
+    local short = why:match("([^:/\\]+)$") or why
+    if #short > 42 then short = short:sub(1, 42) end
+    gcs:send_text(MAV_SEVERITY_WARNING, SCRIPT_NAME .. ": FB fail " .. short)
     FB.warned_rx = true
   end
   return ok
@@ -152,6 +156,21 @@ local function compute_fb_ok(now_ms)
   if FB.flt >= 0.5 then return false end
   if FB.hld >= 0.5 then return false end
   return true
+end
+
+-- Re-publish fold_* as FC-origin NAMED_VALUE_FLOAT so Mission Planner Quick/HUD can show them
+-- (board frames use compid 191 and are ignored by MP Quick).
+local function publish_fold_gcs(now_ms, fb_ok_now)
+  if P.FB_EN:get() < 0.5 then return end
+  if FB.last_gcs_ms ~= nil and (now_ms - FB.last_gcs_ms) < 200 then return end
+  FB.last_gcs_ms = now_ms
+  gcs:send_named_float("fold_pct", FB.pct)
+  gcs:send_named_float("fold_cnt", FB.cnt)
+  gcs:send_named_float("fold_flt", FB.flt)
+  gcs:send_named_float("fold_pwm", FB.pwm)
+  gcs:send_named_float("fold_hld", FB.hld)
+  gcs:send_named_float("fold_ok", fb_ok_now and 1 or 0)
+  gcs:send_named_float("fold_deg", FB.pct * 0.01 * P.THETA_MAX:get())
 end
 
 local FACTOR_TABLE = {
@@ -461,8 +480,14 @@ end
 
 local function read_attitude_deg()
   if ahrs == nil then return 0, 0 end
-  local ok_roll, roll = pcall(function() return ahrs:get_roll() end)
-  local ok_pitch, pitch = pcall(function() return ahrs:get_pitch() end)
+  -- Prefer *_deg when present; else *_rad (old get_roll/get_pitch are deprecated).
+  local ok_roll, roll = pcall(function() return ahrs:get_roll_deg() end)
+  local ok_pitch, pitch = pcall(function() return ahrs:get_pitch_deg() end)
+  if ok_roll and roll ~= nil and ok_pitch and pitch ~= nil then
+    return roll, pitch
+  end
+  ok_roll, roll = pcall(function() return ahrs:get_roll_rad() end)
+  ok_pitch, pitch = pcall(function() return ahrs:get_pitch_rad() end)
   if not ok_roll or roll == nil then roll = 0 end
   if not ok_pitch or pitch == nil then pitch = 0 end
   return math.deg(roll), math.deg(pitch)
@@ -787,6 +812,7 @@ local function update()
 
   poll_fold_mavlink(now_ms)
   local fb_ok_now = compute_fb_ok(now_ms)
+  publish_fold_gcs(now_ms, fb_ok_now)
 
   if not ST.announced then
     local mix_mode = effective_mix_mode(fb_ok_now)

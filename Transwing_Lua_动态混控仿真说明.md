@@ -69,8 +69,8 @@ TW-DYNMIX: running, mix_mode=0 log_only=1.0 blend=0.00 Motors_dynamic=...
 | `TW_TIMEOUT` | 25 | 25 | 折叠映射 |
 | `TW_ACCEL_MIN` | 55 | 55 | 过渡守卫 |
 | `TW_BLEND_MIN` | 30 | 30 | 过渡守卫 |
-| `TW_BLEND_AS` | 13 | **13** | 过渡守卫（20 kg 样机） |
-| `TW_FW_AS` | 18 | **18** | 过渡守卫（失速≈18.6 m/s） |
+| `TW_BLEND_AS` | 11 | **11** | 过渡守卫（失速≈15 m/s） |
+| `TW_FW_AS` | 15 | **15** | 过渡守卫（失速≈15 m/s） |
 | `TW_SAFE_MIN` | 55 | 55 | 过渡守卫（预留） |
 | `TW_ATT_ABORT` | 42 | **42** | 过渡守卫（略高于 ROLL_LIMIT_DEG） |
 | `TW_ATT_DANG` | 55 | 55 | 过渡守卫 |
@@ -246,7 +246,7 @@ TW-DYNMIX: running, mix_mode=0 log_only=1.0 blend=0.00 Motors_dynamic=...
 #### Q assist 与 Lua 联动示意
 
 ```text
-AP: AS < Q_ASSIST_SPEED(16) → assist 介入（升力/稳定）
+AP: AS < Q_ASSIST_SPEED(12) → assist 介入（升力/稳定）
 Lua (TW_ASST_EN=1):
   · 读 quadplane:in_assisted_flight() 或空速回退
   · 目标角 < TW_SAFE_MIN(55°) → Hold 折叠 + 混控 θ ≥ 55°
@@ -256,14 +256,14 @@ Lua (TW_ASST_EN=1):
 
 #### 空速门槛
 
-##### `TW_BLEND_AS`（脚本默认 13，推荐 13 m/s）
+##### `TW_BLEND_AS`（脚本默认 11，推荐 11 m/s）
 
 | 项 | 内容 |
 |----|------|
 | **含义** | 混合段（约 30°–90°）继续往小角度转所需的最低空速 |
 | **日志** | `blend airspeed X.X<13.0` 或 `accel airspeed ...` |
 
-##### `TW_FW_AS`（脚本默认 18，推荐 18 m/s）
+##### `TW_FW_AS`（脚本默认 15，推荐 15 m/s）
 
 | 项 | 内容 |
 |----|------|
@@ -490,8 +490,8 @@ TW_RATE_DN,4.5
 
 TW_ACCEL_MIN,55
 TW_BLEND_MIN,30
-TW_BLEND_AS,13
-TW_FW_AS,18
+TW_BLEND_AS,11
+TW_FW_AS,15
 TW_ATT_ABORT,42
 TW_ATT_DANG,55
 TW_DESC_DANG,-8

@@ -13,8 +13,8 @@ from mavlink_util import param_name
 VERIFY_KEYS = ("TW_MIX_MODE", "TW_LOG_ONLY", "TW_BLEND_AS", "TW_BLEND_MIN", "TW_ATT_ABORT", "TW_ASST_EN", "Q_TILT_MAX")
 
 # Applied after Lua registers TW_*; must match transwing_sitl_mp.params tilt/transition gates.
-# 20 kg prototype: TW_BLEND_AS=13, TW_FW_AS=19, AIRSPEED_MIN/ARSPD_FBW_MIN=19,
-# Q_ASSIST_SPEED=16, TRIM_ARSP_CM=2500, AIRSPEED_MAX=31.
+# Material-optimized: TW_BLEND_AS=11, TW_FW_AS=15 (stall≈15),
+# AIRSPEED_MIN/ARSPD_FBW_MIN=15, Q_ASSIST_SPEED=12, cruise=20, AIRSPEED_MAX=30.
 EXTRA_PARAM_PREFIXES = ("Q_TILT_", "Q_TRANSITION_", "AIRSPEED_", "ARSPD_", "TRIM_ARSP_", "ROLL_LIMIT_")
 
 

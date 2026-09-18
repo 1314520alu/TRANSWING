@@ -93,9 +93,9 @@ SRV_Channels:set_output_pwm_chan_timeout(fold_chan, safe_pwm, guard_ms)
 
 | 场景 | Allow 角 | 参数 | 飞行员应对 |
 |------|----------|------|------------|
-| 目标在 30°–55°，空速不足 | **55°** | `TW_ACCEL_MIN`，AS < `TW_BLEND_AS`（13 m/s） | 加油门至 ≥13 m/s |
-| 目标 < 30°，空速不足 | **30°** | `TW_BLEND_MIN`，AS < `TW_FW_AS`（18 m/s） | 继续加速至 ≥18 m/s |
-| Q Assist 激活，目标 < 55°，AS < 13 | **55°** | `TW_SAFE_MIN`，`TW_ASST_EN=1` | 攒速或等待 assist 退出 |
+| 目标在 30°–55°，空速不足 | **55°** | `TW_ACCEL_MIN`，AS < `TW_BLEND_AS`（11 m/s） | 加油门至 ≥11 m/s |
+| 目标 < 30°，空速不足 | **30°** | `TW_BLEND_MIN`，AS < `TW_FW_AS`（15 m/s） | 继续加速至 ≥15 m/s |
+| Q Assist 激活，目标 < 55°，AS < 11 | **55°** | `TW_SAFE_MIN`，`TW_ASST_EN=1` | 攒速或等待 assist 退出 |
 | FBWA 低空速，仅姿态异常 | 55° 或 30° | `TW_GUARD_FBWA=1` | 改 FBWB 或恢复姿态 |
 
 ### 4.4 与 WARN 的关系
@@ -155,7 +155,7 @@ end
 
 - `TW_GUARD_FBWA=1`
 - 飞行模式 = FBWA
-- 空速 < `TW_BLEND_AS`（13 m/s）
+- 空速 < `TW_BLEND_AS`（11 m/s）
 - **仅** 姿态 abort（无下沉 abort、无饱和）
 
 → 改为 **HOLD_THETA**，Hold 在当前段安全角（55° 或 30°），**不切 Q**。
@@ -271,8 +271,8 @@ python tools/analyze_fold_stuck.py log.BIN
 | `TW_ACCEL_MIN` | 55° | 混合段 Hold 角 |
 | `TW_BLEND_MIN` | 30° | 固定翼段 Hold 角 |
 | `TW_SAFE_MIN` | 55° | assist Hold 角 |
-| `TW_BLEND_AS` | 13 | 混合段空速门槛 |
-| `TW_FW_AS` | 18–19 | 固定翼段空速门槛 |
+| `TW_BLEND_AS` | 11 | 混合段空速门槛 |
+| `TW_FW_AS` | 15 | 固定翼段空速门槛（失速≈15 m/s） |
 | `TW_ATT_ABORT` | 42° | Abort 姿态门槛 |
 | `TW_DESC_DANG` | -8 | 危险下沉门槛 |
 | `TW_SAT_PWM` | 1980 | 饱和门槛 |

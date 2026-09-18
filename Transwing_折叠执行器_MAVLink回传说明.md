@@ -32,15 +32,16 @@ Lua 里：`theta_target` 仍可来自折叠通道 PWM；**`theta_est` 应改为�
 |----|-----|
 | 板端端口 | USART3：PB10 TX / PB11 RX |
 | 波特率 | **115200 8N1** |
-| 飞控侧 | 任意空闲 UART（例：cUAV V6X **UART4** → 通常 `SERIAL4`） |
-| 接线 | 板 TX→飞控 RX，板 RX→飞控 TX（若需双向；当前板端以 **TX 上报为主**），共地 |
+| 飞控侧 | CUAV V6X：**TELEM3 → `SERIAL5`**（USART2，带 RTS/CTS）；其它板按 hwdef 选空闲口 |
+| 接线 | 板 TX→飞控 RX，板 RX→飞控 TX（可选；当前以 **TX 上报为主**），共地；RTS/CTS 可不接 |
 | 调试 USB | 板载 USB CDC = CLI（与 MAVLink **不是同一口**） |
 
-飞控参数示例（按实际 `SERIALn` 改）：
+飞控参数示例（V6X TELEM3 = `SERIAL5`）：
 
 ```text
-SERIALn_PROTOCOL = 1      # MAVLink1（板发 v1；也可用 2，多数版本仍能收 v1）
-SERIALn_BAUD     = 115    # 115200
+SERIAL5_PROTOCOL = 1      # MAVLink1（板发 v1；也可用 2）
+SERIAL5_BAUD     = 115    # 115200
+SERIAL5_OPTIONS  = 0
 SCR_ENABLE       = 1
 ```
 
@@ -121,7 +122,7 @@ local STALE_MS = 1000
 local rx_ok = pcall(function()
   mavlink_msgs = require("MAVLink/mavlink_msgs")
   assert(mavlink_msgs.get_msgid("NAMED_VALUE_FLOAT") == MSG_ID)
-  mavlink:init(32, 1) -- queue length 32, one registered RX msgid
+  mavlink:init(25, 1) -- queue length ≤25, one registered RX msgid
   mavlink:register_rx_msgid(MSG_ID)
 end)
 
@@ -138,12 +139,12 @@ end)
 
 注意：
 
-- `mavlink:init(msg_queue_length, num_rx_msgid)` 的两个参数都必须是整数；此处为 `32, 1`
+- `mavlink:init(msg_queue_length, num_rx_msgid)` 的两个参数都必须是整数，且 **均 ≤25**；此处为 `25, 1`
 - `mavlink_msgs.decode` 第二参数必须是 `{ [msgid] = "消息名" }` 映射表，不能直接传 `251`
 - 初始化应放在 `pcall` 中；模块缺失时禁用反馈并一次性告警，不能阻止主脚本、开环估角和守卫加载
 - 必须先 `register_rx_msgid(251)`，否则收不到  
 - 不要假设每帧都是 `fold_pct`（轮询五名字）  
-- `gcs:send_named_float` 只方便地面站看，**不能**代替本脚本内的状态变量  
+- `gcs:send_named_float` 只方便地面站看，**不能**代替本脚本内的状态变量。当前脚本会把 `fold_*` **再转发**为飞控侧 named float（约 5 Hz），以便 Mission Planner **Quick / HUD User Items** 显示（板端 compid 191 原始帧不会进 Quick）。
 
 PC 侧验证板端（不经飞控）：
 

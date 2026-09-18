@@ -186,9 +186,9 @@ Q_TILT_RATE_DN = 4.5 deg/s   开环估算 theta_est
 
 | 参数 | 默认 | 保护逻辑 |
 |------|-----:|----------|
-| `TW_BLEND_AS` | 13 m/s | 目标 θ < 55° 且 AS < 13 → **DANGER，Hold @ 55°** |
+| `TW_BLEND_AS` | 11 m/s | 目标 θ < 55° 且 AS < 11 → **DANGER，Hold @ 55°** |
 | | | 目标 θ 在 55°–90° 且 AS < 13 → **WARN**（不 Hold） |
-| `TW_FW_AS` | 18 m/s（脚本默认 19） | 目标 θ < 30° 且 AS < 18 → **DANGER，Hold @ 30°** |
+| `TW_FW_AS` | 15 m/s | 目标 θ < 30° 且 AS < 15 → **DANGER，Hold @ 30°** |
 
 **实测含义**：转换卡在 55° → 加油门攒速至 13 m/s；卡在 30° → 继续加速至 18 m/s。
 
@@ -227,12 +227,12 @@ Q_TILT_RATE_DN = 4.5 deg/s   开环估算 theta_est
 
 ### 5.6 Q Assist 联动保护（TW_ASST_EN=1）
 
-AP 在空速低于 `Q_ASSIST_SPEED`（典型 16 m/s）时介入升力/稳定。
+AP 在空速低于 `Q_ASSIST_SPEED`（典型 12 m/s）时介入升力/稳定。
 
 | 条件 | Lua 行为 |
 |------|----------|
 | assist 激活 且 目标 θ < `TW_SAFE_MIN`（55°） | **Hold @ 55°**，混控矩阵 θ ≥ 55° |
-| AS ≥ `TW_BLEND_AS`（13 m/s） | 允许折叠继续低于 SAFE_MIN（正常前飞转换） |
+| AS ≥ `TW_BLEND_AS`（11 m/s） | 允许折叠继续低于 SAFE_MIN（正常前飞转换） |
 | 已 ABORT_TO_Q | assist 联动**不覆盖** Abort |
 
 ### 5.7 FBWA 特殊处理（TW_GUARD_FBWA=1）
@@ -333,8 +333,8 @@ flowchart TD
 | `TW_TIMEOUT` | 25 | 对齐 `Q_TRANSITION_MS/1000` |
 | `TW_ACCEL_MIN` | 55° | 加速段守卫下限 |
 | `TW_BLEND_MIN` | 30° | 混合/固定翼分界 |
-| `TW_BLEND_AS` | 13 | 前飞转换启动建议空速 |
-| `TW_FW_AS` | 18–19 | 固定翼段最低空速 |
+| `TW_BLEND_AS` | 11 | 前飞转换启动建议空速 |
+| `TW_FW_AS` | 15 | 固定翼段最低空速（失速≈15） |
 | `TW_SAFE_MIN` | 55° | assist 联动 Hold 角 |
 | `TW_ATT_ABORT` | 42° | 略高于 `ROLL_LIMIT_DEG` |
 | `TW_GUARD_MS` | 1000 ms | Hold/Abort PWM 超时 |

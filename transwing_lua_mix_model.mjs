@@ -6,8 +6,8 @@ import {
 
 export const FACTOR_THETAS = Object.freeze([0, 15, 30, 45, 60, 75, 90]);
 export const TRANSITION_DEFAULTS = Object.freeze({
-  blendAirspeedMin: 13,
-  fixedWingAirspeedMin: 19,
+  blendAirspeedMin: 11,
+  fixedWingAirspeedMin: 15,
   safeMinThetaDeg: 55,
   accelMinThetaDeg: 55,
   blendMinThetaDeg: 30,

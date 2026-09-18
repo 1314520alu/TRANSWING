@@ -62,7 +62,7 @@ ArduPlane
 5. 再次重启（脚本创建 28 个 TW_ 参数）
 6. 写入本文第 3 节全部 AP + TW 参数
 7. 地面检查 Motor Test、SERVO11 折叠行程
-8. 首飞：QSTABILIZE 悬停 → 空速 ≥13 m/s → FBWB 转换
+8. 首飞：QSTABILIZE 悬停 → 空速 ≥11 m/s → FBWB 转换
 ```
 
 ### 2.1 脚本路径与确认
@@ -207,13 +207,13 @@ SERVO5–10 的 `MIN/MAX/TRIM/REVERSED` 必须逐路地面检查。
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| `TW_BLEND_AS` | **13** | Lua 混合段折角门槛（m/s）；与下表 AP 参数分工不同 |
-| `TW_FW_AS` | **19** | Lua：<30° 固定翼段门槛（m/s） |
-| `AIRSPEED_MIN` | **19** | AP 过渡完成 / 电机减载门槛；与 `TW_FW_AS` 对齐 |
-| `ARSPD_FBW_MIN` | **19** | FBW/TECS 最低空速 |
-| `Q_ASSIST_SPEED` | **16** | 近失速兜底（比 `ARSPD_FBW_MIN` 低 3 m/s） |
-| `TRIM_ARSP_CM` | **2500** | 巡航目标 25 m/s |
-| `AIRSPEED_MAX` | **31** | 最大空速 |
+| `TW_BLEND_AS` | **11** | Lua 混合段折角门槛（m/s）；与下表 AP 参数分工不同 |
+| `TW_FW_AS` | **15** | Lua：<30° 固定翼段门槛（m/s）；对齐预期失速 |
+| `AIRSPEED_MIN` | **15** | AP 过渡完成 / 电机减载门槛；与 `TW_FW_AS` 对齐 |
+| `ARSPD_FBW_MIN` | **15** | FBW/TECS 最低空速 |
+| `Q_ASSIST_SPEED` | **12** | 近失速兜底（比 `ARSPD_FBW_MIN` 低 3 m/s） |
+| `AIRSPEED_CRUISE` / `TRIM_ARSP_CM` | **20** / **2000** | 巡航目标 20 m/s |
+| `AIRSPEED_MAX` | **30** | 最大空速 |
 | `RC_OVERRIDE_TIME` | **10** | RC 覆盖保持时间 (s) |
 
 **强烈建议安装并校准空速计**；无空速计则 Lua 守卫 `TWTR.AS` 不可靠。
@@ -247,8 +247,8 @@ SERVO5–10 的 `MIN/MAX/TRIM/REVERSED` 必须逐路地面检查。
 |------|-----|------|
 | `TW_ACCEL_MIN` | **55** | 低于 55° 需 blend 空速 |
 | `TW_BLEND_MIN` | **30** | 低于 30° 需 FW 空速 |
-| `TW_BLEND_AS` | **13** | m/s，30°–90° 段门槛（20 kg 样机） |
-| `TW_FW_AS` | **18** | m/s，<30° 段门槛（失速≈18.6 m/s） |
+| `TW_BLEND_AS` | **11** | m/s，30°–90° 段门槛（失速≈15 m/s） |
+| `TW_FW_AS` | **15** | m/s，<30° 段门槛（对齐预期失速） |
 | `TW_ATT_ABORT` | **42** | °，姿态 abort（略高于 `ROLL_LIMIT_DEG`） |
 | `ROLL_LIMIT_DEG` | **40** | °，FBWA 最大横滚 |
 | `TW_ATT_DANG` | **55** | °，姿态危险 |
@@ -265,9 +265,9 @@ SERVO5–10 的 `MIN/MAX/TRIM/REVERSED` 必须逐路地面检查。
 90° ───────── 悬停
      │  ≥55°：空速 < BLEND_AS → WARN
 55° ─┼──────── ACCEL_MIN；不足 → Hold@55°
-     │  30°–55°：需 AS ≥ 13 m/s
+     │  30°–55°：需 AS ≥ 11 m/s
 30° ─┼──────── BLEND_MIN；不足 → Hold@30°
-     │  <30°：需 AS ≥ 18 m/s
+     │  <30°：需 AS ≥ 15 m/s
  0° ───────── 固定翼
 ```
 
@@ -312,11 +312,12 @@ SERVO10_FUNCTION,21
 SERVO11_FUNCTION,41
 SERVO12_FUNCTION,0
 
-AIRSPEED_MIN,19
-ARSPD_FBW_MIN,19
-Q_ASSIST_SPEED,16
-TRIM_ARSP_CM,2500
-AIRSPEED_MAX,31
+AIRSPEED_MIN,15
+ARSPD_FBW_MIN,15
+Q_ASSIST_SPEED,12
+AIRSPEED_CRUISE,20
+TRIM_ARSP_CM,2000
+AIRSPEED_MAX,30
 ROLL_LIMIT_DEG,40
 RC_OVERRIDE_TIME,10
 
@@ -333,8 +334,8 @@ TW_RATE_DN,4.5
 TW_TIMEOUT,25
 TW_ACCEL_MIN,55
 TW_BLEND_MIN,30
-TW_BLEND_AS,13
-TW_FW_AS,19
+TW_BLEND_AS,11
+TW_FW_AS,15
 TW_ATT_ABORT,42
 TW_ASST_EN,1
 TW_SAFE_MIN,55

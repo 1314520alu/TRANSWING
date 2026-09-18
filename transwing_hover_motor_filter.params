@@ -1,5 +1,5 @@
 # Transwing 20kg U8II+G26x8.5+ALPHA60A 首飞参数
-# 2026-06-24 — 导入 Mission Planner: Full Parameter List → Load from file
+# 2026-06-24 �?导入 Mission Planner: Full Parameter List �?Load from file
 
 # --- QuadPlane 构型 ---
 Q_ENABLE,1
@@ -42,7 +42,7 @@ Q_M_BAT_VOLT_MIN,42.0
 Q_M_BAT_CURR_MAX,100
 Q_M_BAT_CURR_TC,5
 
-# --- 姿态控制 ---
+# --- 姿态控�?---
 Q_A_ANG_RLL_P,5.0
 Q_A_ANG_PIT_P,5.0
 Q_A_ANG_YAW_P,4.0
@@ -80,14 +80,15 @@ Q_LAND_FINAL_SPD,0.5
 Q_RTL_ALT,20
 ROLL_LIMIT_DEG,40
 
-# --- 空速转换 ---
-AIRSPEED_MIN,19
-ARSPD_FBW_MIN,19
-Q_ASSIST_SPEED,16
-TRIM_ARSP_CM,2500
-AIRSPEED_MAX,31
+# --- 空速转�?---
+AIRSPEED_MIN,15
+ARSPD_FBW_MIN,15
+Q_ASSIST_SPEED,12
+TRIM_ARSP_CM,2000
+AIRSPEED_CRUISE,20
+AIRSPEED_MAX,30
 
-# --- IMU 低通 ---
+# --- IMU 低�?---
 INS_GYRO_FILTER,20
 INS_ACCEL_FILTER,20
 
@@ -116,7 +117,7 @@ Q_A_RAT_YAW_FLTT,20
 Q_A_RAT_YAW_FLTD,20
 Q_A_RAT_YAW_FLTE,2.5
 
-# --- 位置环滤波 ---
+# --- 位置环滤�?---
 Q_P_ACCZ_FLTE,10
 Q_P_VELXY_FLTE,5
 Q_P_VELXY_FLTD,5

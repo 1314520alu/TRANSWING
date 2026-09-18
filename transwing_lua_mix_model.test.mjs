@@ -550,8 +550,8 @@ test("default SITL parameter files enable real motor takeover with diagnostic mi
     assert.match(text, /^TW_SAFE_MIN,55$/m);
     assert.match(text, /^TW_ACCEL_MIN,55$/m);
     assert.match(text, /^TW_BLEND_MIN,30$/m);
-    assert.match(text, /^TW_BLEND_AS,13$/m);
-    assert.match(text, /^TW_FW_AS,19$/m);
+    assert.match(text, /^TW_BLEND_AS,11$/m);
+    assert.match(text, /^TW_FW_AS,15$/m);
     assert.match(text, /^TW_ATT_ABORT,42$/m);
     assert.match(text, /^TW_SAT_PWM,1980$/m);
     assert.match(text, /^TW_GUARD_FBWA,1$/m);

@@ -1,6 +1,6 @@
-# Transwing SITL â€” Lua observe-only (safe debug). Motors stay under ArduPilot.
+# Transwing SITL â€?Lua observe-only (safe debug). Motors stay under ArduPilot.
 # Use: PROFILE=observe bash tools/restart_transwing_sitl.sh
-# Airspeed: blend=13, FW min=19, cruise=25 (TRIM_ARSP_CM), max=31, Q_ASSIST=16 (19-3).
+# Airspeed: blend=11, FW min=15 (stall), cruise=20 (TRIM_ARSP_CM/AIRSPEED_CRUISE), max=30, Q_ASSIST=12 (15-3).
 
 SCR_ENABLE,1
 
@@ -14,11 +14,12 @@ SERVO15_FUNCTION,96
 SERVO16_FUNCTION,97
 
 Q_TRANSITION_MS,25000
-AIRSPEED_MIN,19
-ARSPD_FBW_MIN,19
-Q_ASSIST_SPEED,16
-TRIM_ARSP_CM,2500
-AIRSPEED_MAX,31
+AIRSPEED_MIN,15
+ARSPD_FBW_MIN,15
+Q_ASSIST_SPEED,12
+TRIM_ARSP_CM,2000
+AIRSPEED_CRUISE,20
+AIRSPEED_MAX,30
 ROLL_LIMIT_DEG,40
 RC_OVERRIDE_TIME,10
 
@@ -34,8 +35,8 @@ TW_GUARD,1
 TW_GUARD_FBWA,1
 TW_GUARD_MS,1000
 TW_SAFE_MIN,55
-TW_BLEND_AS,13
-TW_FW_AS,19
+TW_BLEND_AS,11
+TW_FW_AS,15
 TW_ATT_DANG,55
 TW_DESC_DANG,-8
 TW_SAT_PWM,1980

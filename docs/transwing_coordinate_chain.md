@@ -49,9 +49,9 @@ The first transition model is intentionally conservative:
 - `TW_ASST_EN = 1`: link AP assist to Lua fold hold and Motors_dynamic theta floor.
 - `TW_ACCEL_MIN = 55 deg`: below this angle, the script requires blend airspeed.
 - `TW_BLEND_MIN = 30 deg`: minimum fold angle before fixed-wing airspeed is required.
-- `TW_BLEND_AS = 13 m/s`: minimum airspeed for the 30-55 deg blend region (20 kg prototype).
-- `TW_FW_AS = 19 m/s`: minimum airspeed before fixed-wing fold angles below 30 deg.
-- `TRIM_ARSP_CM = 2500` (25 m/s cruise), `AIRSPEED_MAX = 31 m/s`.
+- `TW_BLEND_AS = 11 m/s`: minimum airspeed for the 30-55 deg blend region (stall≈15 m/s).
+- `TW_FW_AS = 15 m/s`: minimum airspeed before fixed-wing fold angles below 30 deg (aligned to stall).
+- `AIRSPEED_CRUISE = 20` / `TRIM_ARSP_CM = 2000` (20 m/s cruise), `AIRSPEED_MAX = 30 m/s`.
 - `TW_ATT_ABORT = 42 deg`: attitude-abort threshold (slightly above ROLL_LIMIT_DEG 40).
 - `ROLL_LIMIT_DEG = 40 deg`: FBWA maximum bank angle.
   back toward Q/hover.

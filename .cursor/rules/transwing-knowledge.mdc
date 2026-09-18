@@ -17,7 +17,7 @@ alwaysApply: true
 ## 首飞阶段默认
 
 - `Q_FRAME_CLASS=1`（原生 Quad X），首飞不用 Lua 动态混控（17）
-- 守卫参考：`TW_SAFE_MIN=55`、`TW_BLEND_MIN=30`、`TW_BLEND_AS=13`、`TW_FW_AS=19`（见 `Transwing_守卫动作说明.md`）
+- 守卫参考：`TW_SAFE_MIN=55`、`TW_BLEND_MIN=30`、`TW_BLEND_AS=11`、`TW_FW_AS=15`（失速≈15 m/s；见 `Transwing_守卫动作说明.md`）
 
 ## 查资料优先级
 

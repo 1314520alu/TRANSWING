@@ -162,11 +162,11 @@ ALPHA 60A 油门行程固化为 **1100–1940 μs**，**无需电调校准**，�
 
 | 参数 | 值 | 说明 |
 |------|-----|------|
-| `AIRSPEED_MIN` | 19 | 过渡完成最低空速（m/s） |
+| `AIRSPEED_MIN` | 15 | 过渡完成最低空速（m/s），对齐失速 |
 | `ARSPD_FBW_MIN` | 19 | FBW/TECS 最低空速（m/s） |
-| `Q_ASSIST_SPEED` | 16 | Q Assist 启动空速（m/s），比失速速度低约 3 m/s |
-| `TRIM_ARSP_CM` | 2500 | 巡航目标空速 25 m/s |
-| `AIRSPEED_MAX` | 31 | 最大空速（m/s） |
+| `Q_ASSIST_SPEED` | 12 | Q Assist 启动空速（m/s），比失速速度低约 3 m/s |
+| `AIRSPEED_CRUISE` / `TRIM_ARSP_CM` | 20 / 2000 | 巡航目标空速 20 m/s |
+| `AIRSPEED_MAX` | 30 | 最大空速（m/s） |
 
 ---
 
@@ -353,11 +353,12 @@ Q_RTL_ALT,20
 ROLL_LIMIT_DEG,40
 
 # --- 空速转换 ---
-AIRSPEED_MIN,19
-ARSPD_FBW_MIN,19
-Q_ASSIST_SPEED,16
-TRIM_ARSP_CM,2500
-AIRSPEED_MAX,31
+AIRSPEED_MIN,15
+ARSPD_FBW_MIN,15
+Q_ASSIST_SPEED,12
+AIRSPEED_CRUISE,20
+TRIM_ARSP_CM,2000
+AIRSPEED_MAX,30
 
 # --- IMU 低通 ---
 INS_GYRO_FILTER,20

@@ -53,42 +53,44 @@ for _, name in ipairs({
   P[name] = Parameter("TW_" .. name)
 end
 
-local NVF_MSG_ID = 251
-local NVF_MSG_MAP = { [251] = "NAMED_VALUE_FLOAT" }
-local mavlink_msgs = nil
-
-local fold_pct = 0
-local fold_cnt = 0
-local fold_flt = 0
-local fold_pwm_fb = 0
-local fold_hld = 0
-local fold_have_pct = false
-local fold_last_rx_ms = nil
-local mavlink_rx_ready = false
-local mavlink_rx_attempted = false
-local warned_mavlink_rx = false
-local fold_fb_enabled_prev = false
-local fold_fb_drain_rx = false
-local warned_fb_req = false
+-- Packed to stay under Lua main-chunk 100-local limit.
+local FB = {
+  msg_id = 251,
+  msg_map = { [251] = "NAMED_VALUE_FLOAT" },
+  msgs = nil,
+  pct = 0,
+  cnt = 0,
+  flt = 0,
+  pwm = 0,
+  hld = 0,
+  have_pct = false,
+  last_rx_ms = nil,
+  rx_ready = false,
+  rx_attempted = false,
+  warned_rx = false,
+  enabled_prev = false,
+  drain_rx = false,
+  warned_req = false,
+}
 
 local function ensure_mavlink_rx()
-  if mavlink_rx_ready then return true end
-  if mavlink_rx_attempted then return false end
-  mavlink_rx_attempted = true
+  if FB.rx_ready then return true end
+  if FB.rx_attempted then return false end
+  FB.rx_attempted = true
   local ok = pcall(function()
-    mavlink_msgs = require("MAVLink/mavlink_msgs")
-    local discovered_id = mavlink_msgs.get_msgid("NAMED_VALUE_FLOAT")
-    if discovered_id ~= NVF_MSG_ID then
+    FB.msgs = require("MAVLink/mavlink_msgs")
+    local discovered_id = FB.msgs.get_msgid("NAMED_VALUE_FLOAT")
+    if discovered_id ~= FB.msg_id then
       error("unexpected NAMED_VALUE_FLOAT msgid")
     end
     mavlink:init(32, 1)
-    mavlink:register_rx_msgid(NVF_MSG_ID)
+    mavlink:register_rx_msgid(FB.msg_id)
   end)
-  mavlink_rx_ready = ok
-  if not ok and not warned_mavlink_rx then
+  FB.rx_ready = ok
+  if not ok and not FB.warned_rx then
     gcs:send_text(MAV_SEVERITY_WARNING,
       SCRIPT_NAME .. ": fold MAVLink unavailable; using open-loop")
-    warned_mavlink_rx = true
+    FB.warned_rx = true
   end
   return ok
 end
@@ -100,55 +102,55 @@ end
 
 local function poll_fold_mavlink(now_ms)
   local fb_enabled = P.FB_EN:get() >= 0.5
-  if fb_enabled and not fold_fb_enabled_prev then
-    fold_have_pct = false
-    fold_last_rx_ms = nil
-    fold_fb_drain_rx = true
+  if fb_enabled and not FB.enabled_prev then
+    FB.have_pct = false
+    FB.last_rx_ms = nil
+    FB.drain_rx = true
   end
-  fold_fb_enabled_prev = fb_enabled
+  FB.enabled_prev = fb_enabled
 
   if not ensure_mavlink_rx() then return end
-  local drain_only = fold_fb_drain_rx
+  local drain_only = FB.drain_rx
   local msg = mavlink:receive_chan()
   while msg do
     if not drain_only then
-      local ok, decoded = pcall(mavlink_msgs.decode, msg, NVF_MSG_MAP)
+      local ok, decoded = pcall(FB.msgs.decode, msg, FB.msg_map)
       if fb_enabled and ok and decoded then
         local name = nvf_name(decoded.name)
         local value = decoded.value
         if name == "fold_pct" then
-          fold_pct = value
-          fold_have_pct = true
-          fold_last_rx_ms = now_ms
+          FB.pct = value
+          FB.have_pct = true
+          FB.last_rx_ms = now_ms
         elseif name == "fold_cnt" then
-          fold_cnt = value
-          fold_last_rx_ms = now_ms
+          FB.cnt = value
+          FB.last_rx_ms = now_ms
         elseif name == "fold_flt" then
-          fold_flt = value
-          fold_last_rx_ms = now_ms
+          FB.flt = value
+          FB.last_rx_ms = now_ms
         elseif name == "fold_pwm" then
-          fold_pwm_fb = value
-          fold_last_rx_ms = now_ms
+          FB.pwm = value
+          FB.last_rx_ms = now_ms
         elseif name == "fold_hld" then
-          fold_hld = value
-          fold_last_rx_ms = now_ms
+          FB.hld = value
+          FB.last_rx_ms = now_ms
         end
       end
     end
     msg = mavlink:receive_chan()
   end
   if drain_only then
-    fold_fb_drain_rx = false
+    FB.drain_rx = false
   end
 end
 
 local function compute_fb_ok(now_ms)
   if P.FB_EN:get() < 0.5 then return false end
-  if not fold_have_pct then return false end
-  if fold_last_rx_ms == nil then return false end
-  if (now_ms - fold_last_rx_ms) > P.FB_STALE:get() then return false end
-  if fold_flt >= 0.5 then return false end
-  if fold_hld >= 0.5 then return false end
+  if not FB.have_pct then return false end
+  if FB.last_rx_ms == nil then return false end
+  if (now_ms - FB.last_rx_ms) > P.FB_STALE:get() then return false end
+  if FB.flt >= 0.5 then return false end
+  if FB.hld >= 0.5 then return false end
   return true
 end
 
@@ -231,29 +233,33 @@ local MODE_FBWB = 6
 local MODE_QSTABILIZE = 17
 local K_TILT_MOTORS_FRONT = 41
 
-local theta_est = 0
-local theta_ol = 0
-local theta_cmd = 0
-local theta_target = 0
-local theta_ap_target = nil
-local fold_cmd_init = false
-local last_fold_cmd_pwm = nil
-local last_ms = millis():tofloat()
-local boot_ms = last_ms
-local target_changed_ms = last_ms
-local last_target = nil
-local warned_timeout = false
-local warned_guard = false
-local last_guard_reason = nil
-local announced = false
-local last_ann_mix = nil
-local last_ann_log = nil
-local climb_filt = 0
-local climb_filt_init = false
-local descent_exceed_start_ms = nil
-local motors_registered = false
-local motors_dynamic_active = false
-local warned_no_motors_dynamic = false
+local ST = {
+  theta_est = 0,
+  theta_ol = 0,
+  theta_cmd = 0,
+  theta_target = 0,
+  theta_ap_target = nil,
+  fold_cmd_init = false,
+  last_fold_cmd_pwm = nil,
+  last_ms = millis():tofloat(),
+  boot_ms = nil,
+  target_changed_ms = nil,
+  last_target = nil,
+  warned_timeout = false,
+  warned_guard = false,
+  last_guard_reason = nil,
+  announced = false,
+  last_ann_mix = nil,
+  last_ann_log = nil,
+  climb_filt = 0,
+  climb_filt_init = false,
+  descent_exceed_start_ms = nil,
+  motors_registered = false,
+  motors_dynamic_active = false,
+  warned_no_motors_dynamic = false,
+}
+ST.boot_ms = ST.last_ms
+ST.target_changed_ms = ST.last_ms
 
 -- Motor test order A,C,D,B for Transwing M1-M4 on Quad X dynamic matrix.
 local MOTOR_TEST_ORDER = { 1, 3, 4, 2 }
@@ -280,8 +286,8 @@ local function lerp(a, b, ratio)
   return a + (b - a) * ratio
 end
 
-local function pwm_to_theta_target(pwm, pwm_fw, pwm_q)
-  if pwm == nil or pwm_fw == pwm_q then return theta_target end
+local function pwm_to_ST.theta_target(pwm, pwm_fw, pwm_q)
+  if pwm == nil or pwm_fw == pwm_q then return ST.theta_target end
   local ratio = clamp((pwm - pwm_fw) / (pwm_q - pwm_fw), 0, 1)
   return ratio * 90
 end
@@ -290,7 +296,7 @@ local function theta_to_pwm(theta, pwm_fw, pwm_q)
   return math.floor(pwm_fw + clamp(theta, 0, 90) / 90 * (pwm_q - pwm_fw) + 0.5)
 end
 
-local function step_theta_estimate(theta, target, dt, rate_up, rate_dn)
+local function step_ST.theta_estimate(theta, target, dt, rate_up, rate_dn)
   local delta = target - theta
   if delta == 0 or dt <= 0 then return theta end
   local rate = delta > 0 and rate_up or rate_dn
@@ -313,16 +319,16 @@ local function read_ap_fold_pwm(fold_chan)
   return SRV_Channels:get_output_pwm_chan(fold_chan)
 end
 
-local function update_ap_fold_target(raw_pwm, pwm_fw, pwm_q, flight_mode, airspeed, theta_cmd, prev_target, dt, rate_up, rate_dn)
+local function update_ap_fold_target(raw_pwm, pwm_fw, pwm_q, flight_mode, airspeed, ST.theta_cmd, prev_target, dt, rate_up, rate_dn)
   local inferred = infer_ap_fold_target(flight_mode, airspeed)
   if inferred ~= nil then return inferred end
 
-  local from_pwm = pwm_to_theta_target(raw_pwm, pwm_fw, pwm_q)
+  local from_pwm = pwm_to_ST.theta_target(raw_pwm, pwm_fw, pwm_q)
   local max_step = math.max(rate_up, rate_dn) * math.max(dt, 0.05) * 2 + 2
 
   if prev_target == nil then return from_pwm end
 
-  if math.abs(from_pwm - theta_cmd) <= max_step + 1 then
+  if math.abs(from_pwm - ST.theta_cmd) <= max_step + 1 then
     return from_pwm
   end
   if math.abs(from_pwm - prev_target) > max_step + 1 then
@@ -335,10 +341,10 @@ local function fold_slew_active(mix_mode)
   return mix_mode == MIX_MODE_CONTROL
 end
 
-local function apply_fold_servo_output(fold_chan, theta_cmd, pwm_fw, pwm_q, timeout_ms)
-  local cmd_pwm = theta_to_pwm(theta_cmd, pwm_fw, pwm_q)
+local function apply_fold_servo_output(fold_chan, ST.theta_cmd, pwm_fw, pwm_q, timeout_ms)
+  local cmd_pwm = theta_to_pwm(ST.theta_cmd, pwm_fw, pwm_q)
   SRV_Channels:set_output_pwm_chan_timeout(fold_chan, cmd_pwm, timeout_ms)
-  last_fold_cmd_pwm = cmd_pwm
+  ST.last_fold_cmd_pwm = cmd_pwm
   return cmd_pwm
 end
 
@@ -536,13 +542,13 @@ local function can_takeover_motors(mix_mode, action, flight_mode, target, estima
 end
 
 local function register_motors_dynamic()
-  if motors_registered or Motors_dynamic == nil then
-    return motors_registered
+  if ST.motors_registered or Motors_dynamic == nil then
+    return ST.motors_registered
   end
   for i = 0, 3 do
     Motors_dynamic:add_motor(i, MOTOR_TEST_ORDER[i + 1])
   end
-  motors_registered = true
+  ST.motors_registered = true
   return true
 end
 
@@ -576,10 +582,10 @@ local function apply_dynamic_motor_mix(factors)
 end
 
 local function warn_missing_motors_dynamic()
-  if warned_no_motors_dynamic then return end
+  if ST.warned_no_motors_dynamic then return end
   gcs:send_text(MAV_SEVERITY_WARNING,
     SCRIPT_NAME .. ": set Q_FRAME_CLASS=17 for Lua motor mix (Motors_dynamic)")
-  warned_no_motors_dynamic = true
+  ST.warned_no_motors_dynamic = true
 end
 
 local function read_climb_rate()
@@ -690,14 +696,14 @@ local function effective_mix_mode(fb_ok_now)
     mode = MIX_MODE_MIRROR
   end
   if mode == MIX_MODE_CONTROL and P.FB_REQ:get() >= 0.5 and not fb_ok_now then
-    if not warned_fb_req then
+    if not FB.warned_req then
       gcs:send_text(MAV_SEVERITY_WARNING,
         SCRIPT_NAME .. ": FB_REQ blocks CONTROL (no fold feedback)")
-      warned_fb_req = true
+      FB.warned_req = true
     end
     return MIX_MODE_MIRROR
   end
-  if fb_ok_now then warned_fb_req = false end
+  if fb_ok_now then FB.warned_req = false end
   return mode
 end
 
@@ -774,33 +780,33 @@ end
 
 local function update()
   local now_ms = millis():tofloat()
-  local dt = (now_ms - last_ms) * 0.001
-  last_ms = now_ms
+  local dt = (now_ms - ST.last_ms) * 0.001
+  ST.last_ms = now_ms
 
   if P.ENABLE:get() < 0.5 then return update, 100 end
 
   poll_fold_mavlink(now_ms)
   local fb_ok_now = compute_fb_ok(now_ms)
 
-  if not announced then
+  if not ST.announced then
     local mix_mode = effective_mix_mode(fb_ok_now)
     local dyn_hint = Motors_dynamic ~= nil and "Motors_dynamic=ok" or "Motors_dynamic=missing"
     gcs:send_text(MAV_SEVERITY_INFO, string.format(
       "%s: running, mix_mode=%d log_only=%s blend=%.2f %s",
       SCRIPT_NAME, mix_mode, tostring(P.LOG_ONLY:get()), P.MIX_BLEND:get(), dyn_hint))
-    announced = true
-    last_ann_mix = mix_mode
-    last_ann_log = P.LOG_ONLY:get()
+    ST.announced = true
+    ST.last_ann_mix = mix_mode
+    ST.last_ann_log = P.LOG_ONLY:get()
   end
 
   local mix_mode_now = effective_mix_mode(fb_ok_now)
   local log_only_now = P.LOG_ONLY:get()
-  if mix_mode_now ~= last_ann_mix or math.abs(log_only_now - (last_ann_log or -1)) > 0.01 then
+  if mix_mode_now ~= ST.last_ann_mix or math.abs(log_only_now - (ST.last_ann_log or -1)) > 0.01 then
     gcs:send_text(MAV_SEVERITY_INFO, string.format(
       "%s: running, mix_mode=%d log_only=%s blend=%.2f",
       SCRIPT_NAME, mix_mode_now, tostring(log_only_now), P.MIX_BLEND:get()))
-    last_ann_mix = mix_mode_now
-    last_ann_log = log_only_now
+    ST.last_ann_mix = mix_mode_now
+    ST.last_ann_log = log_only_now
   end
 
   local fold_chan = math.floor(P.FOLD_CH:get() + 0.5)
@@ -815,38 +821,38 @@ local function update()
   local airspeed = read_airspeed()
 
   if fold_slew then
-    if not fold_cmd_init then
-      theta_ol = pwm_to_theta_target(fold_pwm, pwm_fw, pwm_q)
-      theta_cmd = theta_ol
-      theta_est = fb_ok_now and fold_pct_to_theta(fold_pct) or theta_ol
-      if fb_ok_now then theta_ol = theta_est end
-      theta_ap_target = theta_cmd
-      fold_cmd_init = true
+    if not ST.fold_cmd_init then
+      ST.theta_ol = pwm_to_ST.theta_target(fold_pwm, pwm_fw, pwm_q)
+      ST.theta_cmd = ST.theta_ol
+      ST.theta_est = fb_ok_now and fold_pct_to_theta(FB.pct) or ST.theta_ol
+      if fb_ok_now then ST.theta_ol = ST.theta_est end
+      ST.theta_ap_target = ST.theta_cmd
+      ST.fold_cmd_init = true
     end
-    theta_ap_target = update_ap_fold_target(
-      fold_pwm, pwm_fw, pwm_q, flight_mode, airspeed, theta_cmd, theta_ap_target, dt, rate_up, rate_dn
+    ST.theta_ap_target = update_ap_fold_target(
+      fold_pwm, pwm_fw, pwm_q, flight_mode, airspeed, ST.theta_cmd, ST.theta_ap_target, dt, rate_up, rate_dn
     )
-    theta_target = theta_ap_target
+    ST.theta_target = ST.theta_ap_target
   else
-    theta_target = pwm_to_theta_target(fold_pwm, pwm_fw, pwm_q)
-    theta_ap_target = theta_target
-    fold_cmd_init = false
-    last_fold_cmd_pwm = nil
+    ST.theta_target = pwm_to_ST.theta_target(fold_pwm, pwm_fw, pwm_q)
+    ST.theta_ap_target = ST.theta_target
+    ST.fold_cmd_init = false
+    ST.last_fold_cmd_pwm = nil
   end
 
-  if last_target == nil or math.abs(theta_target - last_target) > 0.5 then
-    target_changed_ms = now_ms
-    warned_timeout = false
-    last_target = theta_target
+  if ST.last_target == nil or math.abs(ST.theta_target - ST.last_target) > 0.5 then
+    ST.target_changed_ms = now_ms
+    ST.warned_timeout = false
+    ST.last_target = ST.theta_target
   end
 
   if not fold_slew then
-    theta_ol = step_theta_estimate(theta_ol, theta_target, dt, rate_up, rate_dn)
+    ST.theta_ol = step_ST.theta_estimate(ST.theta_ol, ST.theta_target, dt, rate_up, rate_dn)
     if fb_ok_now then
-      theta_est = fold_pct_to_theta(fold_pct)
-      theta_ol = theta_est
+      ST.theta_est = fold_pct_to_theta(FB.pct)
+      ST.theta_ol = ST.theta_est
     else
-      theta_est = theta_ol
+      ST.theta_est = ST.theta_ol
     end
   end
 
@@ -856,33 +862,33 @@ local function update()
   local roll_deg, pitch_deg = read_attitude_deg()
   local climb_raw = read_climb_rate()
   local alpha = clamp(dt / CLIMB_FILTER_TAU_S, 0, 1)
-  if not climb_filt_init then
-    climb_filt = climb_raw
-    climb_filt_init = true
+  if not ST.climb_filt_init then
+    ST.climb_filt = climb_raw
+    ST.climb_filt_init = true
   else
-    climb_filt = climb_filt + alpha * (climb_raw - climb_filt)
+    ST.climb_filt = ST.climb_filt + alpha * (climb_raw - ST.climb_filt)
   end
 
   local desc_thresh = P.DESC_DANG:get()
-  if climb_filt < desc_thresh then
-    if descent_exceed_start_ms == nil then
-      descent_exceed_start_ms = now_ms
+  if ST.climb_filt < desc_thresh then
+    if ST.descent_exceed_start_ms == nil then
+      ST.descent_exceed_start_ms = now_ms
     end
   else
-    descent_exceed_start_ms = nil
+    ST.descent_exceed_start_ms = nil
   end
-  local descent_sustained = descent_exceed_start_ms ~= nil and
-    (now_ms - descent_exceed_start_ms) >= (DESC_SUSTAIN_S * 1000)
+  local descent_sustained = ST.descent_exceed_start_ms ~= nil and
+    (now_ms - ST.descent_exceed_start_ms) >= (DESC_SUSTAIN_S * 1000)
 
   local assist_active = read_assist_active(airspeed, flight_mode)
-  local factors_pre = interpolate_factors(theta_est)
+  local factors_pre = interpolate_factors(ST.theta_est)
   local pwm_pre = {}
   for i = 1, 4 do
     pwm_pre[i] = mix_to_pwm(factors_pre[i], throttle, roll, pitch, yaw, gain)
   end
   local motor_pwm = read_motor_pwm_fallback(pwm_pre)
   local saturation = is_saturated(motor_pwm, P.SAT_PWM:get())
-  local boot_elapsed_s = (now_ms - boot_ms) * 0.001
+  local boot_elapsed_s = (now_ms - ST.boot_ms) * 0.001
   local as_guard = airspeed_guard_active(airspeed)
   local guard_enabled = P.GUARD:get() > 0.5
   if guard_enabled and boot_elapsed_s < BOOT_GUARD_GRACE_S and not as_guard then
@@ -890,47 +896,47 @@ local function update()
   end
 
   local phase, risk, action, allowed_theta, guard_reason = evaluate_transition(
-    theta_est, theta_target, airspeed, roll_deg, pitch_deg, climb_filt, saturation, flight_mode, descent_sustained, assist_active, as_guard
+    ST.theta_est, ST.theta_target, airspeed, roll_deg, pitch_deg, ST.climb_filt, saturation, flight_mode, descent_sustained, assist_active, as_guard
   )
 
-  local slew_target = theta_target
+  local slew_target = ST.theta_target
   if action ~= ACTION.ALLOW and guard_enabled then
     slew_target = allowed_theta
   end
   if fold_slew then
-    theta_cmd = step_theta_estimate(theta_cmd, slew_target, dt, rate_up, rate_dn)
-    theta_ol = step_theta_estimate(theta_ol, slew_target, dt, rate_up, rate_dn)
+    ST.theta_cmd = step_ST.theta_estimate(ST.theta_cmd, slew_target, dt, rate_up, rate_dn)
+    ST.theta_ol = step_ST.theta_estimate(ST.theta_ol, slew_target, dt, rate_up, rate_dn)
     if fb_ok_now then
-      theta_est = fold_pct_to_theta(fold_pct)
-      theta_ol = theta_est
+      ST.theta_est = fold_pct_to_theta(FB.pct)
+      ST.theta_ol = ST.theta_est
     else
-      theta_est = theta_ol
+      ST.theta_est = ST.theta_ol
     end
   end
 
-  local factors = interpolate_factors(theta_est)
+  local factors = interpolate_factors(ST.theta_est)
   local pwm = {}
   for i = 1, 4 do pwm[i] = mix_to_pwm(factors[i], throttle, roll, pitch, yaw, gain) end
 
   local fold_cmd_pwm = fold_pwm or 0
   if fold_slew then
     local fold_timeout = math.max(FOLD_OVERRIDE_MS, math.floor(P.GUARD_MS:get() + 0.5))
-    fold_cmd_pwm = apply_fold_servo_output(fold_chan, theta_cmd, pwm_fw, pwm_q, fold_timeout)
+    fold_cmd_pwm = apply_fold_servo_output(fold_chan, ST.theta_cmd, pwm_fw, pwm_q, fold_timeout)
   end
 
   logger:write("TWNG", "Targ,Est,Fold,M1,M2,M3,M4,A1,A2,A3,A4", "fffffffffff",
-    theta_target, theta_est, fold_cmd_pwm,
+    ST.theta_target, ST.theta_est, fold_cmd_pwm,
     pwm[1], pwm[2], pwm[3], pwm[4],
     motor_pwm[1], motor_pwm[2], motor_pwm[3], motor_pwm[4])
 
   local fb_src = fb_ok_now and 1 or 0
   logger:write("TWFB", "Pct,Cnt,Flt,Hld,Ok,Src", "ffffff",
-    fold_pct, fold_cnt, fold_flt, fold_hld, fb_ok_now and 1 or 0, fb_src)
+    FB.pct, FB.cnt, FB.flt, FB.hld, fb_ok_now and 1 or 0, fb_src)
 
   logger:write("TWTR", "Targ,Est,Allow,Phase,Risk,AS,Roll,Pitch,Climb,Sat,Act", "fffffffffff",
-    theta_target, theta_est, allowed_theta, phase, risk, airspeed, roll_deg, pitch_deg, climb_filt, saturation, action)
+    ST.theta_target, ST.theta_est, allowed_theta, phase, risk, airspeed, roll_deg, pitch_deg, ST.climb_filt, saturation, action)
 
-  local mix_theta = theta_est
+  local mix_theta = ST.theta_est
   if mix_mode_now == MIX_MODE_CONTROL then
     if not fold_slew and action ~= ACTION.ALLOW and guard_enabled then
       mix_theta = allowed_theta
@@ -950,15 +956,15 @@ local function update()
     if action == ACTION.ABORT_TO_Q and vehicle ~= nil then
       pcall(function() vehicle:set_mode(17) end)
     end
-    if not warned_guard or guard_reason_key(last_guard_reason) ~= guard_reason_key(guard_reason) then
+    if not ST.warned_guard or guard_reason_key(ST.last_guard_reason) ~= guard_reason_key(guard_reason) then
       gcs:send_text(MAV_SEVERITY_WARNING,
         string.format("%s: guard reason=%s", SCRIPT_NAME, guard_reason))
-      warned_guard = true
-      last_guard_reason = guard_reason
+      ST.warned_guard = true
+      ST.last_guard_reason = guard_reason
     end
   else
-    warned_guard = false
-    last_guard_reason = nil
+    ST.warned_guard = false
+    ST.last_guard_reason = nil
   end
 
   local mix_mode = mix_mode_now
@@ -970,11 +976,11 @@ local function update()
   elseif mix_mode == MIX_MODE_CONTROL then
     local dyn_factors = interpolate_factors(mix_theta)
     if apply_dynamic_motor_mix(dyn_factors) then
-      motors_dynamic_active = true
+      ST.motors_dynamic_active = true
     else
-      motors_dynamic_active = false
+      ST.motors_dynamic_active = false
       warn_missing_motors_dynamic()
-      if can_takeover_motors(mix_mode, action, flight_mode, theta_target, theta_est, fb_ok_now) then
+      if can_takeover_motors(mix_mode, action, flight_mode, ST.theta_target, ST.theta_est, fb_ok_now) then
         local blend = clamp(P.MIX_BLEND:get(), 0, 1)
         for i = 1, 4 do
           local blended = math.floor(lerp(pwm[i], motor_pwm[i], blend) + 0.5)
@@ -983,18 +989,18 @@ local function update()
       end
     end
   else
-    motors_dynamic_active = false
+    ST.motors_dynamic_active = false
   end
 
-  if math.abs(theta_target - theta_est) > 2 and (now_ms - target_changed_ms) > P.TIMEOUT:get() * 1000 then
-    if not warned_timeout then
+  if math.abs(ST.theta_target - ST.theta_est) > 2 and (now_ms - ST.target_changed_ms) > P.TIMEOUT:get() * 1000 then
+    if not ST.warned_timeout then
       gcs:send_text(MAV_SEVERITY_WARNING, SCRIPT_NAME .. ": fold estimate timeout")
-      warned_timeout = true
+      ST.warned_timeout = true
     end
   end
 
   local loop_ms = 100
-  if mix_mode_now == MIX_MODE_CONTROL and motors_dynamic_active then
+  if mix_mode_now == MIX_MODE_CONTROL and ST.motors_dynamic_active then
     loop_ms = 50
   end
   return update, loop_ms

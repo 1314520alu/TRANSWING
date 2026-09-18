@@ -607,10 +607,10 @@ test("lua declares FB params and registers NAMED_VALUE_FLOAT", () => {
   assert.match(lua, /add_param\(TABLE_KEY,\s*31,\s*"FB_REQ"/);
   assert.match(lua, /add_param\(TABLE_KEY,\s*32,\s*"FB_STALE"/);
   assert.match(lua, /add_param\(TABLE_KEY,\s*33,\s*"THETA_MAX"/);
-  assert.match(lua, /local NVF_MSG_ID = 251/);
-  assert.match(lua, /local NVF_MSG_MAP = \{\s*\[251\]\s*=\s*"NAMED_VALUE_FLOAT"\s*\}/);
+  assert.match(lua, /msg_id\s*=\s*251/);
+  assert.match(lua, /msg_map\s*=\s*\{\s*\[251\]\s*=\s*"NAMED_VALUE_FLOAT"\s*\}/);
   assert.match(lua, /mavlink:init\(\s*32\s*,\s*1\s*\)/);
-  assert.match(lua, /pcall\(mavlink_msgs\.decode,\s*msg,\s*NVF_MSG_MAP\)/);
+  assert.match(lua, /pcall\(FB\.msgs\.decode,\s*msg,\s*FB\.msg_map\)/);
   assert.match(lua, /register_rx_msgid/);
   assert.match(lua, /NAMED_VALUE_FLOAT|msgid.*251|MSG_ID/);
   assert.match(lua, /fold_pct/);
@@ -622,11 +622,11 @@ test("lua declares FB params and registers NAMED_VALUE_FLOAT", () => {
 
 test("lua selects theta from feedback and gates CONTROL on FB_REQ", () => {
   const lua = readFileSync(new URL("./scripts/transwing_dynamic_mix.lua", import.meta.url), "utf8");
-  assert.match(lua, /theta_ol/);
-  assert.match(lua, /local theta_cmd = 0/);
-  assert.match(lua, /theta_cmd = step_theta_estimate\(theta_cmd,\s*slew_target/);
-  assert.doesNotMatch(lua, /theta_cmd\s*=\s*theta_est/);
-  assert.match(lua, /update_ap_fold_target\([\s\S]*?theta_cmd,\s*theta_ap_target/);
+  assert.match(lua, /ST\.theta_ol/);
+  assert.match(lua, /theta_cmd\s*=\s*0/);
+  assert.match(lua, /ST\.theta_cmd\s*=\s*step_theta_estimate\(ST\.theta_cmd,\s*slew_target/);
+  assert.doesNotMatch(lua, /ST\.theta_cmd\s*=\s*ST\.theta_est/);
+  assert.match(lua, /update_ap_fold_target\([\s\S]*?ST\.theta_cmd,\s*ST\.theta_ap_target/);
   assert.match(lua, /compute_fb_ok/);
   assert.match(lua, /logger:write\("TWFB"/);
   assert.match(lua, /FB_REQ/);

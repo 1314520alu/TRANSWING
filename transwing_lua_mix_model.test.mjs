@@ -5,6 +5,8 @@ import test from "node:test";
 import {
   FACTOR_TABLE,
   evaluateTransition,
+  fbOk,
+  foldPctToTheta,
   foldSlewStep,
   inferApFoldTarget,
   interpolateFactors,
@@ -12,6 +14,7 @@ import {
   mixToScriptOutputs,
   pwmToThetaTarget,
   readControlInputs,
+  selectThetaEst,
   stepThetaEstimate,
   thetaToPwm,
   updateApFoldTarget,
@@ -560,4 +563,32 @@ test("default SITL parameter files enable real motor takeover with diagnostic mi
   assert.match(luaParams, /^SERVO14_FUNCTION,95$/m);
   assert.match(luaParams, /^SERVO15_FUNCTION,96$/m);
   assert.match(luaParams, /^SERVO16_FUNCTION,97$/m);
+});
+
+test("fbOk requires enable, havePct, fresh rx, and clear flt/hld", () => {
+  const base = { en: true, havePct: true, lastRxMs: 1000, nowMs: 1500, staleMs: 1000, flt: 0, hld: 0 };
+  assert.equal(fbOk(base), true);
+  assert.equal(fbOk({ ...base, en: false }), false);
+  assert.equal(fbOk({ ...base, havePct: false }), false);
+  assert.equal(fbOk({ ...base, nowMs: 2501 }), false);
+  assert.equal(fbOk({ ...base, flt: 1 }), false);
+  assert.equal(fbOk({ ...base, hld: 1 }), false);
+});
+
+test("foldPctToTheta maps 0-100 onto thetaMax", () => {
+  assert.equal(foldPctToTheta(0, 90), 0);
+  assert.equal(foldPctToTheta(50, 90), 45);
+  assert.equal(foldPctToTheta(100, 90), 90);
+  assert.equal(foldPctToTheta(-10, 90), 0);
+  assert.equal(foldPctToTheta(120, 90), 90);
+});
+
+test("selectThetaEst uses feedback and aligns open-loop when fbOk", () => {
+  const withFb = selectThetaEst({ fbOk: true, foldPct: 50, thetaMax: 90, thetaOl: 10 });
+  assert.equal(withFb.thetaEst, 45);
+  assert.equal(withFb.thetaOl, 45);
+
+  const ol = selectThetaEst({ fbOk: false, foldPct: 50, thetaMax: 90, thetaOl: 12 });
+  assert.equal(ol.thetaEst, 12);
+  assert.equal(ol.thetaOl, 12);
 });

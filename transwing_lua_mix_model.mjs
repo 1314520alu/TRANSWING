@@ -351,6 +351,29 @@ export function evaluateTransition(input, options = {}) {
   };
 }
 
+export function fbOk({ en, havePct, lastRxMs, nowMs, staleMs, flt, hld }) {
+  if (!en) return false;
+  if (!havePct) return false;
+  if (lastRxMs == null || nowMs == null) return false;
+  if ((nowMs - lastRxMs) > staleMs) return false;
+  if (Number(flt) === 1) return false;
+  if (Number(hld) === 1) return false;
+  return true;
+}
+
+export function foldPctToTheta(foldPct, thetaMax) {
+  const pct = clamp(Number(foldPct), 0, 100);
+  return (pct / 100) * thetaMax;
+}
+
+export function selectThetaEst({ fbOk: ok, foldPct, thetaMax, thetaOl }) {
+  if (!ok) {
+    return { thetaEst: thetaOl, thetaOl };
+  }
+  const thetaEst = foldPctToTheta(foldPct, thetaMax);
+  return { thetaEst, thetaOl: thetaEst };
+}
+
 export function mixThetaForAssist(thetaDeg, assistActive, options = {}) {
   const cfg = { ...TRANSITION_DEFAULTS, ...options };
   const assistEnable = options.assistEnable ?? true;

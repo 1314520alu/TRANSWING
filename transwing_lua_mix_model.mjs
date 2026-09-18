@@ -356,8 +356,8 @@ export function fbOk({ en, havePct, lastRxMs, nowMs, staleMs, flt, hld }) {
   if (!havePct) return false;
   if (lastRxMs == null || nowMs == null) return false;
   if ((nowMs - lastRxMs) > staleMs) return false;
-  if (Number(flt) === 1) return false;
-  if (Number(hld) === 1) return false;
+  if (Number(flt) >= 0.5) return false;
+  if (Number(hld) >= 0.5) return false;
   return true;
 }
 

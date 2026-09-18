@@ -33,8 +33,11 @@
 |------|-----|------|
 | `SCR_ENABLE` | `1` | 启用 Lua 脚本 |
 | 脚本路径 | `APM/scripts/transwing_dynamic_mix.lua` | 上传后**重启飞控** |
+| MAVLink 消息模块 | `APM/scripts/modules/MAVLink/mavlink_msg_NAMED_VALUE_FLOAT.lua` | 从仓库 `scripts/modules/MAVLink/` 同路径复制；ArduPilot 默认不附带该消息模块 |
 
 脚本首次加载时通过 `param:add_table(91, "TW_", 33)` 创建参数表。Mission Planner → **Full Parameter Tree** 搜索 `TW_` 应看到 33 项。
+
+若消息模块缺失或 MAVLink 接收初始化失败，脚本仍会加载并保留开环估角与守卫，只禁用反馈路径，同时仅发送一次 `fold MAVLink unavailable; using open-loop` 警告。
 
 ### 2.2 启动确认
 
@@ -191,9 +194,9 @@ TW-DYNMIX: running, mix_mode=0 log_only=1.0 blend=0.00 Motors_dynamic=...
 1. **反馈轨**（`TW_FB_EN=1` 且 `fb_ok`）：`theta_est = fold_pct / 100 × TW_THETA_MAX`；同时把开环状态 `theta_ol` 同步为实测角。  
 2. **开环轨**（反馈关闭或失效）：`theta_ol = step_theta_estimate(..., TW_RATE_UP/DN)`，`theta_est = theta_ol`。
 
-`fb_ok` 条件：已收到 `fold_pct`、距上次 RX ≤ `TW_FB_STALE`、`fold_flt≠1`、`fold_hld≠1`。
+`fb_ok` 条件：已收到 `fold_pct`、距上次 RX ≤ `TW_FB_STALE`、`fold_flt<0.5`、`fold_hld<0.5`。
 
-**CONTROL 写舵机**：`MIX_MODE=2` 且守卫 Hold/Abort 时，折叠 PWM 仍由指令角 `theta_cmd_out`（开环 slew）写出，**不用**反馈角直接写舵机。
+**CONTROL 写舵机**：`MIX_MODE=2` 时，独立指令状态 `theta_cmd` 按目标与守卫限制 slew 后写出折叠 PWM；反馈只校正 `theta_est` / `theta_ol`，**不会**回灌 `theta_cmd`。
 
 实机接线与字段语义见 **[Transwing_折叠执行器_MAVLink回传说明.md](./Transwing_折叠执行器_MAVLink回传说明.md)**。
 

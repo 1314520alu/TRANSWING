@@ -83,7 +83,7 @@ Transwing 满行程默认 **\(\theta_{\max}=90^\circ\)**（与混控表 0…90 �
 ### 时效与品质
 
 - 单字段约 5 Hz → Lua 判丢失建议 **> 500–1000 ms** 无任一反馈帧
-- `fold_flt == 1` 或 `fold_hld == 1`：反馈仍可显示，但转换/守卫应降级（Hold / 开环 / Abort 策略自定）
+- `fold_flt >= 0.5` 或 `fold_hld >= 0.5`：反馈仍可显示，但转换/守卫应降级（Hold / 开环 / Abort 策略自定）
 - name 最长 **10** 字符；解码后需去掉 `\0` 填充
 
 ---
@@ -106,21 +106,30 @@ Transwing 满行程默认 **\(\theta_{\max}=90^\circ\)**（与混控表 0…90 �
 
 ## 5. Lua 接收要点（另一工程可直接用）
 
+ArduPilot 默认脚本模块不包含 `NAMED_VALUE_FLOAT`。部署时必须把本仓库
+`scripts/modules/MAVLink/mavlink_msg_NAMED_VALUE_FLOAT.lua` 一并复制到飞控
+`APM/scripts/modules/MAVLink/`，与 `APM/scripts/transwing_dynamic_mix.lua` 保持对应目录。
+
 ```lua
-local mavlink_msgs = require("MAVLink/mavlink_msgs")
-local MSG_ID = mavlink_msgs.get_msgid("NAMED_VALUE_FLOAT")  -- 251
+local MSG_ID = 251
+local MSG_MAP = { [251] = "NAMED_VALUE_FLOAT" }
+local mavlink_msgs = nil
 
 local THETA_MAX_DEG = 90.0
 local STALE_MS = 1000
 
-mavlink:init(32, false)
-mavlink:register_rx_msgid(MSG_ID)
+local rx_ok = pcall(function()
+  mavlink_msgs = require("MAVLink/mavlink_msgs")
+  assert(mavlink_msgs.get_msgid("NAMED_VALUE_FLOAT") == MSG_ID)
+  mavlink:init(32, 1) -- queue length 32, one registered RX msgid
+  mavlink:register_rx_msgid(MSG_ID)
+end)
 
 -- 在 update() 里：
 -- local msg = mavlink:receive_chan()
 -- while msg do
---   local d = mavlink_msgs.decode(msg, MSG_ID)
---   local name = (d.name or ""):match("^[^%z]*")
+--   local ok, d = pcall(mavlink_msgs.decode, msg, MSG_MAP)
+--   local name = ok and d and (d.name or ""):match("^[^%z]*") or ""
 --   -- 按 name 填 fold_pct / fold_cnt / fold_flt / fold_pwm / fold_hld
 --   msg = mavlink:receive_chan()
 -- end
@@ -129,6 +138,9 @@ mavlink:register_rx_msgid(MSG_ID)
 
 注意：
 
+- `mavlink:init(msg_queue_length, num_rx_msgid)` 的两个参数都必须是整数；此处为 `32, 1`
+- `mavlink_msgs.decode` 第二参数必须是 `{ [msgid] = "消息名" }` 映射表，不能直接传 `251`
+- 初始化应放在 `pcall` 中；模块缺失时禁用反馈并一次性告警，不能阻止主脚本、开环估角和守卫加载
 - 必须先 `register_rx_msgid(251)`，否则收不到  
 - 不要假设每帧都是 `fold_pct`（轮询五名字）  
 - `gcs:send_named_float` 只方便地面站看，**不能**代替本脚本内的状态变量  

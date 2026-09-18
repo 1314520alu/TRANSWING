@@ -53,8 +53,9 @@ for _, name in ipairs({
   P[name] = Parameter("TW_" .. name)
 end
 
-local mavlink_msgs = require("MAVLink/mavlink_msgs")
-local NVF_MSG_ID = mavlink_msgs.get_msgid("NAMED_VALUE_FLOAT")
+local NVF_MSG_ID = 251
+local NVF_MSG_MAP = { [251] = "NAMED_VALUE_FLOAT" }
+local mavlink_msgs = nil
 
 local fold_pct = 0
 local fold_cnt = 0
@@ -64,15 +65,30 @@ local fold_hld = 0
 local fold_have_pct = false
 local fold_last_rx_ms = nil
 local mavlink_rx_ready = false
+local mavlink_rx_attempted = false
+local warned_mavlink_rx = false
+local fold_fb_enabled_prev = false
 local warned_fb_req = false
 
 local function ensure_mavlink_rx()
   if mavlink_rx_ready then return true end
+  if mavlink_rx_attempted then return false end
+  mavlink_rx_attempted = true
   local ok = pcall(function()
-    mavlink:init(32, false)
+    mavlink_msgs = require("MAVLink/mavlink_msgs")
+    local discovered_id = mavlink_msgs.get_msgid("NAMED_VALUE_FLOAT")
+    if discovered_id ~= NVF_MSG_ID then
+      error("unexpected NAMED_VALUE_FLOAT msgid")
+    end
+    mavlink:init(32, 1)
     mavlink:register_rx_msgid(NVF_MSG_ID)
   end)
   mavlink_rx_ready = ok
+  if not ok and not warned_mavlink_rx then
+    gcs:send_text(MAV_SEVERITY_WARNING,
+      SCRIPT_NAME .. ": fold MAVLink unavailable; using open-loop")
+    warned_mavlink_rx = true
+  end
   return ok
 end
 
@@ -82,12 +98,18 @@ local function nvf_name(raw)
 end
 
 local function poll_fold_mavlink(now_ms)
-  if P.FB_EN:get() < 0.5 then return end
+  local fb_enabled = P.FB_EN:get() >= 0.5
+  if fb_enabled and not fold_fb_enabled_prev then
+    fold_have_pct = false
+    fold_last_rx_ms = nil
+  end
+  fold_fb_enabled_prev = fb_enabled
+
   if not ensure_mavlink_rx() then return end
   local msg = mavlink:receive_chan()
   while msg do
-    local ok, decoded = pcall(mavlink_msgs.decode, msg, NVF_MSG_ID)
-    if ok and decoded then
+    local ok, decoded = pcall(mavlink_msgs.decode, msg, NVF_MSG_MAP)
+    if fb_enabled and ok and decoded then
       local name = nvf_name(decoded.name)
       local value = decoded.value
       if name == "fold_pct" then
@@ -117,8 +139,8 @@ local function compute_fb_ok(now_ms)
   if not fold_have_pct then return false end
   if fold_last_rx_ms == nil then return false end
   if (now_ms - fold_last_rx_ms) > P.FB_STALE:get() then return false end
-  if fold_flt == 1 then return false end
-  if fold_hld == 1 then return false end
+  if fold_flt >= 0.5 then return false end
+  if fold_hld >= 0.5 then return false end
   return true
 end
 
@@ -203,6 +225,7 @@ local K_TILT_MOTORS_FRONT = 41
 
 local theta_est = 0
 local theta_ol = 0
+local theta_cmd = 0
 local theta_target = 0
 local theta_ap_target = nil
 local fold_cmd_init = false
@@ -779,7 +802,6 @@ local function update()
   local rate_dn = P.RATE_DN:get()
   local fold_slew = fold_slew_active(mix_mode_now)
   local fold_pwm = read_ap_fold_pwm(fold_chan)
-  local theta_cmd_out = nil
 
   local flight_mode = get_flight_mode()
   local airspeed = read_airspeed()
@@ -787,13 +809,14 @@ local function update()
   if fold_slew then
     if not fold_cmd_init then
       theta_ol = pwm_to_theta_target(fold_pwm, pwm_fw, pwm_q)
+      theta_cmd = theta_ol
       theta_est = fb_ok_now and fold_pct_to_theta(fold_pct) or theta_ol
       if fb_ok_now then theta_ol = theta_est end
-      theta_ap_target = theta_ol
+      theta_ap_target = theta_cmd
       fold_cmd_init = true
     end
     theta_ap_target = update_ap_fold_target(
-      fold_pwm, pwm_fw, pwm_q, flight_mode, airspeed, theta_est, theta_ap_target, dt, rate_up, rate_dn
+      fold_pwm, pwm_fw, pwm_q, flight_mode, airspeed, theta_cmd, theta_ap_target, dt, rate_up, rate_dn
     )
     theta_target = theta_ap_target
   else
@@ -867,8 +890,8 @@ local function update()
     slew_target = allowed_theta
   end
   if fold_slew then
+    theta_cmd = step_theta_estimate(theta_cmd, slew_target, dt, rate_up, rate_dn)
     theta_ol = step_theta_estimate(theta_ol, slew_target, dt, rate_up, rate_dn)
-    theta_cmd_out = theta_ol
     if fb_ok_now then
       theta_est = fold_pct_to_theta(fold_pct)
       theta_ol = theta_est
@@ -884,7 +907,7 @@ local function update()
   local fold_cmd_pwm = fold_pwm or 0
   if fold_slew then
     local fold_timeout = math.max(FOLD_OVERRIDE_MS, math.floor(P.GUARD_MS:get() + 0.5))
-    fold_cmd_pwm = apply_fold_servo_output(fold_chan, theta_cmd_out, pwm_fw, pwm_q, fold_timeout)
+    fold_cmd_pwm = apply_fold_servo_output(fold_chan, theta_cmd, pwm_fw, pwm_q, fold_timeout)
   end
 
   logger:write("TWNG", "Targ,Est,Fold,M1,M2,M3,M4,A1,A2,A3,A4", "fffffffffff",

@@ -39,6 +39,7 @@
 | QuadPlane 倾转通用参数 | [ArduPilot_QuadPlane_TiltRotor_参数配置.md](../ArduPilot_QuadPlane_TiltRotor_参数配置.md) |
 | 模式转换与保护 | [Transwing_模式转换与保护说明.md](../Transwing_模式转换与保护说明.md) |
 | 守卫动作 TW_* | [Transwing_守卫动作说明.md](../Transwing_守卫动作说明.md) |
+| 吹风展开 / 参数调整表 | [docs/Transwing_展开测试参数调整表.md](../docs/Transwing_展开测试参数调整表.md)（[PDF](../docs/Transwing_展开测试参数调整表.pdf)） |
 | SITL 运行 | [Transwing_动态SITL运行说明.md](../Transwing_动态SITL运行说明.md) |
 | Lua 动态混控 | [Transwing_Lua_动态混控仿真说明.md](../Transwing_Lua_动态混控仿真说明.md) |
 | ArduPilot patch 说明 | [patches/ardupilot-transwing-lua-motors-dynamic.md](../patches/ardupilot-transwing-lua-motors-dynamic.md) |
@@ -65,6 +66,7 @@
 |------|------|
 | [Transwing_实机固件与参数配置.md](../Transwing_实机固件与参数配置.md) | 实机固件与参数总览 |
 | [docs/Transwing_多旋翼动力与滤波参数配置.md](../docs/Transwing_多旋翼动力与滤波参数配置.md) | 首飞动力、滤波、陷波 |
+| [docs/Transwing_展开测试参数调整表.md](../docs/Transwing_展开测试参数调整表.md) | 吹风展开 / 首飞参数调整表（[PDF](../docs/Transwing_展开测试参数调整表.pdf)） |
 | [ArduPilot_QuadPlane_TiltRotor_参数配置.md](../ArduPilot_QuadPlane_TiltRotor_参数配置.md) | QuadPlane 倾转通用说明 |
 | [transwing_hover_motor_filter.params](../transwing_hover_motor_filter.params) | 悬停滤波参数集 |
 | [transwing_lua_sitl.params](../transwing_lua_sitl.params) | Lua SITL 参数 |
@@ -125,4 +127,4 @@ Wiki 手动建目录分类；上传后飞书云端自动切片向量化。精确
 
 ---
 
-*索引版本：2026-06-25。新增文档时请同步更新 `index.yaml` 与本 README。ArduPilot Obsidian 库见上文「ArduPilot 全站 Obsidian 库」。*
+*索引版本：2026-09-24。新增文档时请同步更新 `index.yaml` 与本 README。ArduPilot Obsidian 库见上文「ArduPilot 全站 Obsidian 库」。*

@@ -2,7 +2,7 @@
 # 供 search_kb.py、CI、MaxKB 同步脚本使用
 
 version: 1
-updated: "2026-06-25"
+updated: "2026-09-24"
 repo_root: ".."
 
 categories:
@@ -40,6 +40,12 @@ categories:
       - path: docs/Transwing_多旋翼动力与滤波参数配置.md
         title: 多旋翼动力与滤波
         tags: [params, filter, notch, hover]
+      - path: docs/Transwing_展开测试参数调整表.md
+        title: 展开测试参数调整表
+        tags: [params, guard, airspeed, fold, first-flight]
+      - path: docs/Transwing_展开测试参数调整表.pdf
+        title: 展开测试参数调整表 PDF
+        tags: [params, pdf, guard, airspeed]
       - path: ArduPilot_QuadPlane_TiltRotor_参数配置.md
         title: QuadPlane 倾转参数
         tags: [params, quadplane, tilt]
